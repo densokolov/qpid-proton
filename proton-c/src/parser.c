@@ -25,6 +25,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
+#ifdef _WINDOWS
+	#include "util.h"
+#endif
 
 struct pn_parser_t {
   pn_scanner_t *scanner;

@@ -19,19 +19,28 @@
  *
  */
 
-#include <stdarg.h>
-#include <stdbool.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <sys/types.h>
-#include <stdint.h>
-#include <ctype.h>
-#include <string.h>
-#include <strings.h> // For non C89/C99 strcasecmp
-#include <proton/error.h>
-#include <proton/util.h>
-#include <proton/types.h>
-#include "util.h"
+#ifdef _WINDOWS
+	#include <stdio.h>
+	#include <stdint.h>
+	#include <stdlib.h>
+	#include <tchar.h>
+	#include <ctype.h>
+	#include "util.h"
+	#include "./include/proton/util.h"
+	#include <proton/error.h>
+#else
+	#include <stdarg.h>
+	#include <stdbool.h>
+	#include <stdio.h>
+	#include <stdlib.h>	
+	#include <strings.h>
+	#include <sys/types.h>
+	#include <stdint.h>
+	#include <ctype.h>
+	#include <string.h>
+	#include <proton/error.h>
+	#include <proton/util.h>
+#endif
 
 ssize_t pn_quote_data(char *dst, size_t capacity, const char *src, size_t size)
 {
@@ -60,15 +69,19 @@ ssize_t pn_quote_data(char *dst, size_t capacity, const char *src, size_t size)
   return idx;
 }
 
+#define CAPACITY_SIZE 1024
 void pn_fprint_data(FILE *stream, const char *bytes, size_t size)
 {
-  size_t capacity = 4*size + 1;
-  char buf[capacity];
-  ssize_t n = pn_quote_data(buf, capacity, bytes, size);
+  char buf[CAPACITY_SIZE];								// VLA  fixed size for print statement  mdh
+  ssize_t n = pn_quote_data(buf, CAPACITY_SIZE, bytes, size);
   if (n >= 0) {
     fputs(buf, stream);
   } else {
+#ifdef _WINDOWS
+	fprintf(stderr, "pn_quote_data: %li\n", n);
+#else												// mdh format issue
     fprintf(stderr, "pn_quote_data: %zi\n", n);
+#endif
   }
 }
 
@@ -86,21 +99,31 @@ void parse_url(char *url, char **scheme, char **user, char **pass, char **host, 
       *scheme = url;
       url = scheme_end + 3;
     }
-
-    char *at = strchr(url, '@');
+#ifdef _WINDOWS
+    char *at = strchr(url, '@');   // mdh substitute function
+#else						
+    char *at = index(url, '@');
+#endif
     if (at) {
       *at = '\0';
       char *up = url;
       *user = up;
       url = at + 1;
-      char *colon = strchr(up, ':');
+#ifdef _WINDOWS
+	  char *colon = strchr(up, ':');
+#else						// mdh substitute function
+      char *colon = index(up, ':');
+#endif
       if (colon) {
         *colon = '\0';
         *pass = colon + 1;
       }
     }
-
-    char *slash = strchr(url, '/');
+#ifdef _WINDOWS				// mdh
+	char *slash = strchr(url, '/');
+#else
+    char *slash = index(url, '/');
+#endif
     if (slash) {
       *slash = '\0';
       *host = url;
@@ -109,8 +132,11 @@ void parse_url(char *url, char **scheme, char **user, char **pass, char **host, 
     } else {
       *host = url;
     }
-
-    char *colon = strchr(*host, ':');
+#ifdef _WINDOWS						// mdh
+	char *colon = strchr(*host, ':');
+#else
+    char *colon = index(*host, ':');
+#endif
     if (colon) {
       *colon = '\0';
       *port = colon + 1;
@@ -135,14 +161,19 @@ void pn_fatal(char *fmt, ...)
 bool pn_env_bool(const char *name)
 {
   char *v = getenv(name);
+#ifdef _WINDOWS							// mdh -- added windows version
+  return v && (!_tcsnicmp(v, "true", strlen(v)) || !_tcsnicmp(v, "1", strlen(v)) ||
+               !_tcsnicmp(v, "yes", strlen(v)));
+#else							
   return v && (!strcasecmp(v, "true") || !strcasecmp(v, "1") ||
                !strcasecmp(v, "yes"));
+#endif
 }
 
 char *pn_strdup(const char *src)
 {
   if (src) {
-    char *dest = (char *) malloc((strlen(src)+1)*sizeof(char));
+    char *dest = (char *) malloc((strlen(src)+1)*sizeof(char));	
     if (!dest) return NULL;
     return strcpy(dest, src);
   } else {
@@ -158,8 +189,8 @@ char *pn_strndup(const char *src, size_t n)
       size++;
     }
 
-    char *dest = (char *) malloc(size + 1);
-    if (!dest) return NULL;
+    char *dest = (char *) malloc(size + 1);		
+	if (!dest) return NULL;
     strncpy(dest, src, n);
     dest[size] = '\0';
     return dest;
@@ -167,12 +198,3 @@ char *pn_strndup(const char *src, size_t n)
     return NULL;
   }
 }
-
-// which timestamp will expire next, or zero if none set
-pn_timestamp_t pn_timestamp_min( pn_timestamp_t a, pn_timestamp_t b )
-{
-  if (a && b) return pn_min(a, b);
-  if (a) return a;
-  return b;
-}
-

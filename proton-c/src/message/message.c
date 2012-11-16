@@ -217,7 +217,7 @@ int pn_message_set_durable(pn_message_t *msg, bool durable)
 
 uint8_t pn_message_get_priority(pn_message_t *msg)
 {
-  return msg ? msg->priority : PN_DEFAULT_PRIORITY;
+  return msg ? msg->priority : (uint8_t) PN_DEFAULT_PRIORITY;          // explicit cast
 }
 int pn_message_set_priority(pn_message_t *msg, uint8_t priority)
 {
@@ -263,10 +263,19 @@ pn_data_t *pn_message_id(pn_message_t *msg)
 {
   return msg ? msg->id : NULL;
 }
+
 pn_atom_t pn_message_get_id(pn_message_t *msg)
 {
+#ifdef _WINDOWS							// mdh initialization
+  pn_atom_t atomt;
+  atomt.type = PN_NULL;
+  atomt.u.as_ulong = 0;
+  return msg ? pn_data_get_atom(msg->id) : atomt;
+#else
   return msg ? pn_data_get_atom(msg->id) : (pn_atom_t) {.type=PN_NULL};
+#endif
 }
+
 int pn_message_set_id(pn_message_t *msg, pn_atom_t id)
 {
   if (!msg) return PN_ARG_ERR;
@@ -366,7 +375,14 @@ pn_data_t *pn_message_correlation_id(pn_message_t *msg)
 }
 pn_atom_t pn_message_get_correlation_id(pn_message_t *msg)
 {
+#ifdef _WINDOWS							// mdh initialization
+  pn_atom_t atomt;
+  atomt.type = PN_NULL;
+  atomt.u.as_ulong = 0;
+  return msg ? pn_data_get_atom(msg->correlation_id) : atomt;
+#else
   return msg ? pn_data_get_atom(msg->correlation_id) : (pn_atom_t) {.type=PN_NULL};
+#endif
 }
 int pn_message_set_correlation_id(pn_message_t *msg, pn_atom_t atom)
 {
@@ -457,7 +473,7 @@ int pn_message_decode(pn_message_t *msg, const char *bytes, size_t size)
 
   while (size) {
     pn_data_clear(msg->data);
-    ssize_t used = pn_data_decode(msg->data, bytes, size);
+    ssize_t used = pn_data_decode(msg->data, (char *) bytes, size);        // explicit cast 
     if (used < 0) return pn_error_format(msg->error, used, "data error: %s",
                                          pn_data_error(msg->data));
     size -= used;

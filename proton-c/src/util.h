@@ -23,18 +23,57 @@
  */
 
 #include <errno.h>
-#include <stdbool.h>
+
+
+#ifdef _WINDOWS
+	#include <BaseTsd.h>
+#define snprintf _snprintf			
+#define ssize_t SSIZE_T
+//#define MSG_NOSIGNAL    0x4000
+#define MSG_NOSIGNAL    0x0000
+// mdh -- need to check list
+typedef long long int64;
+#define PRId8     "hhd"
+#define PRId16    "hd"
+#define PRId32    "ld"
+#define PRId64    "lld"
+#define PRIi32    "li"
+#define PRIi16    "hi"
+#define PRIi8     "hhi"
+#define PRIu8     "hhu"
+#define PRIu16    "hu"
+#define PRIu32    "lu"
+//#define PRIu64 int64;
+//#define PRIi64 int64
+#define PRIi64    "lli"
+#define PRIu64    "llu"
+//============
+
+#ifndef va_copy
+	/* WARNING - DANGER - ASSUMES TYPICAL STACK MACHINE */
+	#define va_copy(dst, src) ((void)((dst) = (src)))
+	#define atoll _atoi64
+
+#endif
+
+#else
+	#include <stdbool.h>
+#endif				// end windows
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/types.h>
-#include <proton/types.h>
+#include "QPID_PROTON.h"								//mdh added for dll import/export
 
-ssize_t pn_quote_data(char *dst, size_t capacity, const char *src, size_t size);
+#ifdef __cplusplus
+	extern "C" {
+#endif
+
+QPID_PROTON_API ssize_t pn_quote_data(char *dst, size_t capacity, const char *src, size_t size);
 void pn_fprint_data(FILE *stream, const char *bytes, size_t size);
-void pn_print_data(const char *bytes, size_t size);
-bool pn_env_bool(const char *name);
-pn_timestamp_t pn_timestamp_min(pn_timestamp_t a, pn_timestamp_t b);
+QPID_PROTON_API void pn_print_data(const char *bytes, size_t size);
+QPID_PROTON_PY bool pn_env_bool(const char *name);
 
 #define DIE_IFR(EXPR, STRERR)                                           \
   do {                                                                  \
@@ -97,18 +136,8 @@ char *pn_strndup(const char *src, size_t n);
 #define pn_min(X,Y) ((X) > (Y) ? (Y) : (X))
 #define pn_max(X,Y) ((X) < (Y) ? (Y) : (X))
 
-#define PN_ENSURE(ARRAY, CAPACITY, COUNT)                      \
-  while ((CAPACITY) < (COUNT)) {                                \
-    (CAPACITY) = (CAPACITY) ? 2 * (CAPACITY) : 16;              \
-    (ARRAY) = realloc((ARRAY), (CAPACITY) * sizeof (*(ARRAY))); \
-  }                                                             \
-
-#define PN_ENSUREZ(ARRAY, CAPACITY, COUNT)                \
-  {                                                        \
-    size_t _old_capacity = (CAPACITY);                     \
-    PN_ENSURE((ARRAY), (CAPACITY), (COUNT));               \
-    memset((ARRAY) + _old_capacity, 0,                     \
-           sizeof(*(ARRAY))*((CAPACITY) - _old_capacity)); \
-  }
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* util.h */

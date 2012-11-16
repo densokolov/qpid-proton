@@ -21,15 +21,29 @@
 
 #include <proton/messenger.h>
 #include <proton/driver.h>
-#include <proton/util.h>
+#ifdef _WINDOWS
+	#include "./include/proton/util.h"
+	#include <assert.h>
+#include "./src/engine/engine-internal.h"
+#else
+	#include <proton/util.h>
+#endif
+
 #include <proton/ssl.h>
 #include <proton/buffer.h>
-#include <assert.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
-#include <sys/time.h>
-#include <uuid/uuid.h>
+
+#ifdef _WINDOWS
+	#include <Rpc.h>
+	#include <ObjBase.h>
+	#include "timewin.h"
+#else
+	#include <sys/time.h>		
+	#include <uuid/uuid.h>
+#endif
+
 #include "util.h"
 
 typedef struct {
@@ -40,7 +54,6 @@ typedef struct {
   pn_sequence_t hwm;
   pn_delivery_t **deliveries;
 } pn_queue_t;
-
 struct pn_messenger_t {
   char *name;
   char *certificate;
@@ -75,7 +88,7 @@ void pn_queue_init(pn_queue_t *queue)
   queue->lwm = 0;
   queue->mwm = 0;
   queue->hwm = 0;
-  queue->deliveries = calloc(queue->capacity, sizeof(pn_delivery_t *));
+  queue->deliveries = (pn_delivery_t **) calloc(queue->capacity, sizeof(pn_delivery_t *));
 }
 
 void pn_queue_tini(pn_queue_t *queue)
@@ -148,7 +161,11 @@ pn_sequence_t pn_queue_add(pn_queue_t *queue, pn_delivery_t *delivery)
 {
   pn_sequence_t id = queue->hwm++;
   size_t offset = id - queue->lwm;
+#ifdef _WINDOWS 
+  PN_ENSUREZ(queue->deliveries, queue->capacity, offset + 1, pn_delivery_t **);
+#else
   PN_ENSUREZ(queue->deliveries, queue->capacity, offset + 1);
+#endif
   assert(offset >= 0 && offset < queue->capacity);
   queue->deliveries[offset] = delivery;
   pn_delivery_set_context(delivery, (void *) (intptr_t) id);
@@ -227,22 +244,35 @@ int pn_queue_update(pn_queue_t *queue, pn_sequence_t id, pn_status_t status,
 #define pn_tracker_direction(tracker) ((tracker) & (0x1000000000000000))
 #define pn_tracker_sequence(tracker) ((pn_sequence_t) ((tracker) & (0x00000000FFFFFFFF)))
 
-static char *build_name(const char *name)
+static char *build_name(const char *name)           // changes for uuid for windows
 {
+  char buf[37];						// mdh for windows
   if (name) {
     return pn_strdup(name);
   } else {
-    char *generated = malloc(37*sizeof(char));
     uuid_t uuid;
+#ifdef _WINDOWS
+	LPOLESTR generated = (LPOLESTR)malloc(39*sizeof(OLECHAR));
+	UuidCreate(&uuid);
+    StringFromGUID2(uuid, generated, 39);   // mdh Windows includes the{} 39 instead of 37, also a LPOLESTR
+	// mdh   remove the {} in the returned string  and change from LPOLESTR to char*
+	generated = generated +1;
+	generated[36] = '\0';
+	WideCharToMultiByte(CP_ACP, 0, generated, 37, buf, 37, NULL, NULL);
+	free(generated);	
+	return buf;
+#else
+    char *generated = malloc(37*sizeof(char));
     uuid_generate(uuid);
     uuid_unparse_lower(uuid, generated);
     return generated;
+#endif 
   }
 }
 
 pn_messenger_t *pn_messenger(const char *name)
 {
-  pn_messenger_t *m = (pn_messenger_t *) malloc(sizeof(pn_messenger_t));
+  pn_messenger_t *m = (pn_messenger_t *) malloc(sizeof(pn_messenger_t)); 
 
   if (m) {
     m->name = build_name(name);
@@ -465,6 +495,11 @@ void pn_messenger_reclaim(pn_messenger_t *messenger, pn_connection_t *conn)
   }
 }
 
+static long int millis(struct timeval tv)
+{
+  return tv.tv_sec * 1000 + tv.tv_usec/1000;
+}
+
 int pn_messenger_tsync(pn_messenger_t *messenger, bool (*predicate)(pn_messenger_t *), int timeout)
 {
   pn_connector_t *ctor = pn_connector_head(messenger->driver);
@@ -473,18 +508,17 @@ int pn_messenger_tsync(pn_messenger_t *messenger, bool (*predicate)(pn_messenger
     ctor = pn_connector_next(ctor);
   }
 
-  pn_timestamp_t now = pn_driver_now(messenger->driver);
-  long int deadline = now + timeout;
+  struct timeval now;
+  if (gettimeofday(&now, NULL)) pn_fatal("gettimeofday failed\n");
+  long int deadline = millis(now) + timeout;
   bool pred;
 
   while (true) {
     pred = predicate(messenger);
-    int remaining = deadline - now;
+    int remaining = deadline - millis(now);
     if (pred || (timeout >= 0 && remaining < 0)) break;
 
-    int error = pn_driver_wait(messenger->driver, remaining);
-    if (error)
-        return error;
+    pn_driver_wait(messenger->driver, remaining);
 
     pn_listener_t *l;
     while ((l = pn_driver_listener(messenger->driver))) {
@@ -521,6 +555,7 @@ int pn_messenger_tsync(pn_messenger_t *messenger, bool (*predicate)(pn_messenger
         pn_connector_free(c);
         pn_messenger_reclaim(messenger, conn);
         pn_decref(conn);
+        pn_connection_free(conn);
         pn_messenger_flow(messenger);
       } else {
         pn_connector_process(c);
@@ -528,7 +563,7 @@ int pn_messenger_tsync(pn_messenger_t *messenger, bool (*predicate)(pn_messenger
     }
 
     if (timeout >= 0) {
-      now = pn_driver_now(messenger->driver);
+      if (gettimeofday(&now, NULL)) pn_fatal("gettimeofday failed\n");
     }
   }
 
@@ -592,9 +627,10 @@ static const char *default_port(const char *scheme)
     return "5672";
 }
 
+#define DOMAIN_SIZE 256                   // removed VLA
 pn_connection_t *pn_messenger_resolve(pn_messenger_t *messenger, char *address, char **name)
 {
-  char domain[strlen(address) + 1];
+  char domain[DOMAIN_SIZE];
   char *scheme = NULL;
   char *user = NULL;
   char *pass = NULL;
@@ -664,7 +700,11 @@ pn_connection_t *pn_messenger_resolve(pn_messenger_t *messenger, char *address, 
 
 pn_subscription_t *pn_subscription(pn_messenger_t *messenger, const char *scheme)
 {
+#ifdef _WINDOWS
+  PN_ENSURE(messenger->subscriptions, messenger->sub_capacity, messenger->sub_count + 1, pn_subscription_t *);
+#else
   PN_ENSURE(messenger->subscriptions, messenger->sub_capacity, messenger->sub_count + 1);
+#endif
   pn_subscription_t *sub = messenger->subscriptions + messenger->sub_count++;
   sub->scheme = pn_strdup(scheme);
   sub->context = NULL;
@@ -683,9 +723,10 @@ void pn_subscription_set_context(pn_subscription_t *sub, void *context)
   sub->context = context;
 }
 
+#define ADDRESS_SIZE 256                             // removed VLA
 pn_link_t *pn_messenger_link(pn_messenger_t *messenger, const char *address, bool sender)
 {
-  char copy[(address ? strlen(address) : 0) + 1];
+  char copy[ADDRESS_SIZE];                           // VLA removed
   if (address) {
     strcpy(copy, address);
   } else {
@@ -731,10 +772,19 @@ pn_link_t *pn_messenger_target(pn_messenger_t *messenger, const char *target)
   return pn_messenger_link(messenger, target, true);
 }
 
-pn_subscription_t *pn_messenger_subscribe(pn_messenger_t *messenger, const char *source)
+#define SOURCE_SIZE		256                       // removed VLA
+int pn_messenger_subscribe(pn_messenger_t *messenger, const char *source)
 {
-  char copy[strlen(source) + 1];
-  strcpy(copy, source);
+  char copy[SOURCE_SIZE];				// VLA using fixed size	mdh
+  size_t num = strlen(source) < SOURCE_SIZE ? strlen(source) : SOURCE_SIZE ;
+  strncpy(copy, source, num + 1);					// mdh 
+  if (num == SOURCE_SIZE)
+  {
+	  copy[SOURCE_SIZE - 1] = '\0';
+	  return pn_error_format(messenger->error, PN_ERR,
+                             "unable to subscribe to source: %s (%s)", copy,
+                             "source was truncated");
+  }
 
   char *scheme = NULL;
   char *user = NULL;
@@ -751,7 +801,7 @@ pn_subscription_t *pn_messenger_subscribe(pn_messenger_t *messenger, const char 
     if (lnr) {
       pn_subscription_t *sub = pn_subscription(messenger, scheme);
       pn_listener_set_context(lnr, sub);
-      return sub;
+      return (int) sub;					// mdh -- cast is a pn_subcription_t to an int
     } else {
       pn_error_format(messenger->error, PN_ERR,
                       "unable to subscribe to source: %s (%s)", source,
@@ -761,8 +811,8 @@ pn_subscription_t *pn_messenger_subscribe(pn_messenger_t *messenger, const char 
   } else {
     pn_link_t *src = pn_messenger_source(messenger, source);
     if (src) {
-      pn_subscription_t *sub = pn_link_get_context(src);
-      return sub;
+      pn_subscription_t *sub = (pn_subscription_t *)pn_link_get_context(src);		// explicit cast
+      return (int) sub;					// mdh -- cast is a pn_subcription_t to an int
     } else {
       pn_error_format(messenger->error, PN_ERR,
                       "unable to subscribe to source: %s (%s)", source,
@@ -821,18 +871,23 @@ static void outward_munge(pn_messenger_t *mng, pn_message_t *msg)
 {
   const char *address = pn_message_get_reply_to(msg);
   int len = address ? strlen(address) : 0;
+  char *buf = 0;
   if (len > 1 && address[0] == '~' && address[1] == '/') {
-    char buf[len + strlen(mng->name) + 9];
+    buf = (char *) malloc(len + strlen(mng->name) + 9);	// VLA	removed	
+    // char buf[len + strlen(mng->name) + 9];
     sprintf(buf, "amqp://%s/%s", mng->name, address + 2);
     pn_message_set_reply_to(msg, buf);
   } else if (len == 0) {
-    char buf[strlen(mng->name) + 8];
+	buf = (char *) malloc(strlen(mng->name) + 8);	// VLA	removed	
+    // char buf[strlen(mng->name) + 8];
     sprintf(buf, "amqp://%s", mng->name);
     pn_message_set_reply_to(msg, buf);
   }
+  if (buf)
+    free(buf);
 }
 
-// static bool false_pred(pn_messenger_t *messenger) { return false; }
+// bool false_pred(pn_messenger_t *messenger) { return false; }
 
 int pn_messenger_put(pn_messenger_t *messenger, pn_message_t *msg)
 {
@@ -908,8 +963,6 @@ static pn_status_t disp2status(pn_disposition_t disp)
   default:
     assert(0);
   }
-
-  return 0;
 }
 
 pn_status_t pn_messenger_status(pn_messenger_t *messenger, pn_tracker_t tracker)
@@ -931,7 +984,7 @@ pn_status_t pn_messenger_status(pn_messenger_t *messenger, pn_tracker_t tracker)
 int pn_messenger_settle(pn_messenger_t *messenger, pn_tracker_t tracker, int flags)
 {
   pn_queue_t *queue = pn_tracker_queue(messenger, tracker);
-  return pn_queue_update(queue, pn_tracker_sequence(tracker), 0, flags, true, true);
+  return pn_queue_update(queue, pn_tracker_sequence(tracker), (pn_status_t) 0, flags, true, true);
 }
 
 bool pn_messenger_sent(pn_messenger_t *messenger)
@@ -963,6 +1016,7 @@ bool pn_messenger_sent(pn_messenger_t *messenger)
 
   return true;
 }
+
 
 bool pn_messenger_rcvd(pn_messenger_t *messenger)
 {
@@ -1012,7 +1066,7 @@ int pn_messenger_get(pn_messenger_t *messenger, pn_message_t *msg)
     while (d) {
       if (pn_delivery_readable(d) && !pn_delivery_partial(d)) {
         pn_link_t *l = pn_delivery_link(d);
-        pn_subscription_t *sub = pn_link_get_context(l);
+        pn_subscription_t *sub = (pn_subscription_t *) pn_link_get_context(l);		// explicit cast
         size_t pending = pn_delivery_pending(d);
         pn_buffer_t *buf = messenger->buffer;
         int err = pn_buffer_ensure(buf, pending + 1);
@@ -1020,7 +1074,11 @@ int pn_messenger_get(pn_messenger_t *messenger, pn_message_t *msg)
         char *encoded = pn_buffer_bytes(buf).start;
         ssize_t n = pn_link_recv(l, encoded, pending);
         if (n != pending) {
+#ifdef   _WINDOWS														// mdh format issue
+          return pn_error_format(messenger->error, n, "didn't receive pending bytes: %li", n);
+#else
           return pn_error_format(messenger->error, n, "didn't receive pending bytes: %zi", n);
+#endif
         }
         n = pn_link_recv(l, encoded + pending, 1);
         pn_link_advance(l);
@@ -1084,7 +1142,7 @@ int pn_messenger_accept(pn_messenger_t *messenger, pn_tracker_t tracker, int fla
   }
 
   return pn_queue_update(&messenger->incoming, pn_tracker_sequence(tracker),
-                         PN_ACCEPTED, flags, false, false);
+                         (pn_status_t) PN_ACCEPTED, flags, false, false);		// explicit cast on PN_ACCEPTED // mdh
 }
 
 int pn_messenger_reject(pn_messenger_t *messenger, pn_tracker_t tracker, int flags)
@@ -1095,7 +1153,7 @@ int pn_messenger_reject(pn_messenger_t *messenger, pn_tracker_t tracker, int fla
   }
 
   return pn_queue_update(&messenger->incoming, pn_tracker_sequence(tracker),
-                         PN_REJECTED, flags, false, false);
+                         (pn_status_t) PN_REJECTED, flags, false, false);		// explicit cast on PN_ACCEPTED // mdh
 }
 
 int pn_messenger_queued(pn_messenger_t *messenger, bool sender)

@@ -23,7 +23,9 @@
  */
 
 #include <sys/types.h>
+#ifndef		_WINDOWS
 #include <stdbool.h>
+#endif
 #include <proton/engine.h>
 
 #ifdef __cplusplus
@@ -65,7 +67,7 @@ typedef struct pn_ssl_t pn_ssl_t;
  * @return a pointer to the SSL object configured for this transport.  Returns NULL if SSL
  * cannot be provided, which would occur if no SSL support is available.
  */
-pn_ssl_t *pn_ssl(pn_transport_t *transport);
+QPID_PROTON_PY	pn_ssl_t *pn_ssl(pn_transport_t *transport);
 
 /** Initialize the pn_ssl_t object.
  *
@@ -80,7 +82,7 @@ typedef enum {
   PN_SSL_MODE_CLIENT=1, /**< Local connection endpoint is an SSL client */
   PN_SSL_MODE_SERVER    /**< Local connection endpoint is an SSL server */
 } pn_ssl_mode_t;
-int pn_ssl_init(pn_ssl_t *ssl, pn_ssl_mode_t mode);
+QPID_PROTON_PY	int pn_ssl_init(pn_ssl_t *ssl, pn_ssl_mode_t mode);
 
 /** Set the certificate that identifies the local node to the remote.
  *
@@ -89,15 +91,15 @@ int pn_ssl_init(pn_ssl_t *ssl, pn_ssl_mode_t mode);
  * both SSL servers and SSL clients (if client authentication is required by the server).
  *
  * @param[in] ssl the ssl server/client will provide this certificate.
- * @param[in] certificate_file path to file/database containing the identifying
+ * @param[in] certificate_path path to file/database containing the identifying
  * certificate.
- * @param[in] private_key_file path to file/database containing the private key used to
+ * @param[in] private_key_path path to file/database containing the private key used to
  * sign the certificate
  * @param[in] password the password used to sign the key, else NULL if key is not
  * protected.
  * @return 0 on success
  */
- int pn_ssl_set_credentials( pn_ssl_t *ssl,
+ QPID_PROTON_PY	int pn_ssl_set_credentials( pn_ssl_t *ssl,
                              const char *certificate_file,
                              const char *private_key_file,
                              const char *password);
@@ -113,7 +115,7 @@ int pn_ssl_init(pn_ssl_t *ssl, pn_ssl_mode_t mode);
  * @return 0 on success
  */
 
-int pn_ssl_set_trusted_ca_db(pn_ssl_t *ssl,
+QPID_PROTON_PY	int pn_ssl_set_trusted_ca_db(pn_ssl_t *ssl,
                              const char *certificate_db);
 
 /** Permit a server to accept connection requests from non-SSL clients.
@@ -125,9 +127,7 @@ int pn_ssl_set_trusted_ca_db(pn_ssl_t *ssl,
  * @param[in] ssl the SSL server that will accept the client connection.
  * @return 0 on success
  */
-int pn_ssl_allow_unsecured_client(pn_ssl_t *ssl);
-
-
+QPID_PROTON_PY	int pn_ssl_allow_unsecured_client(pn_ssl_t *ssl);
 /** Determines the level of peer validation.
  *
  *  VERIFY_PEER will only connect to those peers that provide a valid identifying
@@ -143,7 +143,6 @@ typedef enum {
   PN_SSL_VERIFY_PEER,     /**< require peer to provide a valid identifying certificate */
   PN_SSL_ANONYMOUS_PEER,  /**< do not require a certificate nor cipher authorization */
 } pn_ssl_verify_mode_t;
-
 
 /** Configure the level of verification used on the peer certificate.
  *
@@ -163,12 +162,12 @@ typedef enum {
  * to the peer client if the server has been configured to verify its peer.
  * @return 0 on success
  */
-int pn_ssl_set_peer_authentication(pn_ssl_t *ssl,
+QPID_PROTON_PY	int pn_ssl_set_peer_authentication(pn_ssl_t *ssl,
                                    const pn_ssl_verify_mode_t mode,
                                    const char *trusted_CAs);
 
 /** Get the level of verification to be used on the peer certificate.
- *
+  *
  * Access the current peer certificate validation level.  See
  * ::pn_ssl_set_peer_authentication().
  *
@@ -182,7 +181,7 @@ int pn_ssl_set_peer_authentication(pn_ssl_t *ssl,
  * null byte.
  * @return 0 on success
  */
-int pn_ssl_get_peer_authentication(pn_ssl_t *ssl,
+QPID_PROTON_PY	int pn_ssl_get_peer_authentication(pn_ssl_t *ssl,
                                    pn_ssl_verify_mode_t *mode,
                                    char *trusted_CAs, size_t *trusted_CAs_size);
 
@@ -197,7 +196,7 @@ int pn_ssl_get_peer_authentication(pn_ssl_t *ssl,
  * @param[in] size maximum number of bytes in buffer.
  * @return True if cipher name written to buffer, False if no cipher in use.
  */
-bool pn_ssl_get_cipher_name(pn_ssl_t *ssl, char *buffer, size_t size);
+QPID_PROTON_PY	bool pn_ssl_get_cipher_name(pn_ssl_t *ssl, char *buffer, size_t size);
 
 /** Get the name of the SSL protocol that is currently in use.
  *
@@ -209,7 +208,7 @@ bool pn_ssl_get_cipher_name(pn_ssl_t *ssl, char *buffer, size_t size);
  * @param[in] size maximum number of bytes in buffer.
  * @return True if the version information was to buffer, False if SSL connection not ready.
  */
-bool pn_ssl_get_protocol_name(pn_ssl_t *ssl, char *buffer, size_t size);
+QPID_PROTON_PY  bool pn_ssl_get_protocol_name(pn_ssl_t *ssl, char *buffer, size_t size);
 #ifdef __cplusplus
 }
 #endif

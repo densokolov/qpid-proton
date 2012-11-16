@@ -21,13 +21,13 @@
 
 #define _GNU_SOURCE
 
+#ifndef _WINDOWS
 #include <stdio.h>
 #include <string.h>
 #include <proton/driver.h>
 #include <proton/message.h>
 #include <proton/util.h>
 #include <unistd.h>
-#include <libgen.h>
 #include "util.h"
 #include "pn_config.h"
 #include <proton/codec.h>
@@ -35,6 +35,25 @@
 #include <proton/parser.h>
 #include <inttypes.h>
 #include "protocol.h"
+#else
+
+#include <stdio.h>
+#include <string.h>
+#include <proton/driver.h>
+#include <proton/message.h>
+#include <proton/util.h>
+#include "util.h"
+#include "pn_config.h"
+#include <proton/codec.h>
+#include <proton/buffer.h>
+#include <proton/parser.h>
+#include "protocol.h"
+// 
+#include <WinSock2.h>
+#include <WinBase.h>
+#include <proton/getopt.h>
+#endif
+
 
 int buffer(int argc, char **argv)
 {
@@ -109,7 +128,8 @@ void server_callback(pn_connector_t *ctor)
     case PN_SASL_STEP:
       {
         size_t n = pn_sasl_pending(sasl);
-        char iresp[n];
+        //  char iresp[n];
+		PN_VLA(char, iresp, n);								// mdh
         pn_sasl_recv(sasl, iresp, n);
         printf("%s", pn_sasl_remote_mechanisms(sasl));
         printf(" response = ");
@@ -117,7 +137,8 @@ void server_callback(pn_connector_t *ctor)
         printf("\n");
         pn_sasl_done(sasl, PN_SASL_OK);
         pn_connector_set_connection(ctor, pn_connection());
-      }
+		PN_VLA_FREE(iresp);									// mdh
+	  }
       break;
     case PN_SASL_PASS:
       break;
@@ -127,10 +148,10 @@ void server_callback(pn_connector_t *ctor)
   }
 
   pn_connection_t *conn = pn_connector_connection(ctor);
-  struct server_context *ctx = pn_connector_context(ctor);
+  struct server_context *ctx = (server_context *) pn_connector_context(ctor);		// explicit cast
   char tagstr[1024];
   char msg[10*1024];
-  char data[ctx->size + 16];
+  char *data = (char*) malloc((ctx->size + 16) * sizeof(char));
   for (int i = 0; i < ctx->size; i++) {
     msg[i] = 'x';
   }
@@ -146,6 +167,8 @@ void server_callback(pn_connector_t *ctor)
     ssn = pn_session_next(ssn, PN_LOCAL_UNINIT | PN_REMOTE_ACTIVE);
   }
 
+  pn_delivery_tag_t delivt;
+
   pn_link_t *link = pn_link_head(conn, PN_LOCAL_UNINIT | PN_REMOTE_ACTIVE);
   while (link) {
     printf("%s, %s\n", pn_terminus_get_address(pn_link_remote_source(link)),
@@ -156,7 +179,11 @@ void server_callback(pn_connector_t *ctor)
     if (pn_link_is_receiver(link)) {
       pn_link_flow(link, 100);
     } else {
-      pn_delivery(link, pn_dtag("blah", 4));
+      pn_delivery(link, pn_dtag("blah", 4));		// mdh initializatio
+
+//		delivt.bytes = "blah";
+//		delivt.size = 4;
+//		pn_delivery(link, delivt);
     }
 
     link = pn_link_next(link, PN_LOCAL_UNINIT | PN_REMOTE_ACTIVE);
@@ -191,8 +218,8 @@ void server_callback(pn_connector_t *ctor)
         if (!ctx->quiet) printf("sent delivery: %s\n", tagstr);
         char tagbuf[16];
         sprintf(tagbuf, "%i", ctx->count++);
-        pn_delivery(link, pn_dtag(tagbuf, strlen(tagbuf)));
-      }
+        pn_delivery(link, pn_dtag(tagbuf, strlen(tagbuf))); 
+	  }
     }
 
     if (pn_delivery_updated(delivery)) {
@@ -218,6 +245,8 @@ void server_callback(pn_connector_t *ctor)
     pn_link_close(link);
     link = pn_link_next(link, PN_LOCAL_ACTIVE | PN_REMOTE_CLOSED);
   }
+  if (data) 
+	  free (data);
 }
 
 struct client_context {
@@ -239,7 +268,8 @@ struct client_context {
 
 void client_callback(pn_connector_t *ctor)
 {
-  struct client_context *ctx = (struct client_context *) pn_connector_context(ctor);
+
+  struct client_context *ctx = (client_context *) pn_connector_context(ctor);		// explicit cast
   if (pn_connector_closed(ctor)) {
     ctx->done = true;
   }
@@ -276,18 +306,21 @@ void client_callback(pn_connector_t *ctor)
 
   pn_connection_t *connection = pn_connector_connection(ctor);
   char tagstr[1024];
-  char msg[ctx->size];
-  char data[ctx->size + 16];
+  char *msg = (char*) malloc((ctx->size + 16)* sizeof(char));		// mdh remove VLA destination size
+  char *data = (char*) malloc((ctx->size + 16) * sizeof(char));		// mdh remove VLA
   for (int i = 0; i < ctx->size; i++) {
     msg[i] = 'x';
   }
+  msg[ctx->size] = '\0';
+
+
   size_t ndata = pn_message_data(data, ctx->size + 16, msg, ctx->size);
 
   if (!ctx->init) {
     ctx->init = true;
 
     char container[1024];
-    if (gethostname(container, 1024)) pn_fatal("hostname lookup failed");
+    if (GetHostName(container, 1024) != 0) pn_fatal("hostname lookup failed");
 
     pn_connection_set_container(connection, container);
     pn_connection_set_hostname(connection, ctx->hostname);
@@ -317,6 +350,7 @@ void client_callback(pn_connector_t *ctor)
   }
 
   pn_delivery_t *delivery = pn_work_head(connection);
+
   while (delivery)
   {
     pn_delivery_tag_t tag = pn_delivery_tag(delivery);
@@ -366,6 +400,7 @@ void client_callback(pn_connector_t *ctor)
     delivery = pn_work_next(delivery);
   }
 
+
   if (!ctx->send_count && !ctx->recv_count) {
     printf("closing\n");
     // XXX: how do we close the session?
@@ -376,6 +411,10 @@ void client_callback(pn_connector_t *ctor)
   if (pn_connection_state(connection) == (PN_LOCAL_CLOSED | PN_REMOTE_CLOSED)) {
     ctx->done = true;
   }
+  if (msg)				
+	  free(msg);
+  if (data)
+	  free(data);
 }
 
 #include <ctype.h>
@@ -427,7 +466,7 @@ int main(int argc, char **argv)
       buffer(argc, argv);
       exit(EXIT_SUCCESS);
     case 'h':
-      printf("Usage: %s [-h] [-c [user[:password]@]host[:port]] [-a <address>] [-m <sasl-mech>]\n", basename(argv[0]));
+      printf("Usage: %s [-h] [-c [user[:password]@]host[:port]] [-a <address>] [-m <sasl-mech>]\n", argv[0]);
       printf("\n");
       printf("    -c    The connect url.\n");
       printf("    -a    The AMQP address.\n");
@@ -452,9 +491,10 @@ int main(int argc, char **argv)
   char *path = NULL;
 
   parse_url(url, &scheme, &user, &pass, &host, &port, &path);
-
   pn_driver_t *drv = pn_driver();
+
   if (url) {
+
     struct client_context ctx = {false, false, count, count, drv, quiet, size, high, low};
     ctx.username = user;
     ctx.password = pass;
@@ -464,6 +504,7 @@ int main(int argc, char **argv)
     pn_connector_t *ctor = pn_connector(drv, host, port, &ctx);
     if (!ctor) pn_fatal("connector failed\n");
     pn_connector_set_connection(ctor, pn_connection());
+
     while (!ctx.done) {
       pn_driver_wait(drv, -1);
       pn_connector_t *c;
@@ -471,13 +512,14 @@ int main(int argc, char **argv)
         pn_connector_process(c);
         client_callback(c);
         if (pn_connector_closed(c)) {
-	  pn_connection_free(pn_connector_connection(c));
-          pn_connector_free(c);
+			pn_connection_free(pn_connector_connection(c));
+			pn_connector_free(c);	
         } else {
           pn_connector_process(c);
         }
       }
-    }
+	}
+
   } else {
     struct server_context ctx = {0, quiet, size};
     if (!pn_listener(drv, host, port, &ctx)) pn_fatal("listener failed\n");
@@ -503,8 +545,6 @@ int main(int argc, char **argv)
       }
     }
   }
-
   pn_driver_free(drv);
-
   return 0;
 }

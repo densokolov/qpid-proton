@@ -23,13 +23,14 @@
  */
 
 #include <stdarg.h>
+#include "QPID_PROTON.h"						//mdh -- for windows
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-void parse_url(char *url, char **scheme, char **user, char **pass, char **host, char **port, char **path);
-void pn_fatal(char *fmt, ...);
+QPID_PROTON_API  void parse_url(char *url, char **scheme, char **user, char **pass, char **host, char **port, char **path);
+QPID_PROTON_API  void pn_fatal(char *fmt, ...);
 void pn_vfatal(char *fmt, va_list ap);
 
 #ifdef __cplusplus

@@ -38,7 +38,6 @@ pn_dispatcher_t *pn_dispatcher(uint8_t frame_type, void *context)
   disp->trace = PN_TRACE_OFF;
 
   disp->input = pn_buffer(1024);
-  disp->fragment = 0;
 
   disp->channel = 0;
   disp->code = 0;
@@ -65,7 +64,7 @@ void pn_dispatcher_free(pn_dispatcher_t *disp)
     pn_buffer_free(disp->input);
     pn_data_free(disp->args);
     pn_data_free(disp->output_args);
-    pn_buffer_free(disp->frame);
+	pn_buffer_free(disp->frame);
     free(disp->output);
     free(disp);
   }
@@ -95,8 +94,13 @@ static void pn_do_trace(pn_dispatcher_t *disp, uint16_t ch, pn_dir_t dir,
     if (size) {
       char buf[1024];
       int e = pn_quote_data(buf, 1024, payload, size);
+#ifdef _WINDOWS									// mdh format issue
+      fprintf(stderr, " (%lu) \"%s\"%s\n", size, buf,
+              e == PN_OVERFLOW ? "... (truncated)" : "");
+#else														
       fprintf(stderr, " (%zu) \"%s\"%s\n", size, buf,
               e == PN_OVERFLOW ? "... (truncated)" : "");
+#endif
     } else {
       fprintf(stderr, "\n");
     }
@@ -115,13 +119,7 @@ void pn_dispatcher_trace(pn_dispatcher_t *disp, uint16_t ch, char *fmt, ...)
 
 int pn_dispatch_frame(pn_dispatcher_t *disp, pn_frame_t frame)
 {
-  if (frame.size == 0) { // ignore null frames
-    if (disp->trace & PN_TRACE_FRM)
-      pn_dispatcher_trace(disp, frame.channel, "<- (EMPTY FRAME)\n");
-    return 0;
-  }
-
-  ssize_t dsize = pn_data_decode(disp->args, frame.payload, frame.size);
+  ssize_t dsize = pn_data_decode(disp->args, (char *) frame.payload, frame.size);    // explicit cast
   if (dsize < 0) {
     fprintf(stderr, "Error decoding frame: %s %s\n", pn_code(dsize),
             pn_data_error(disp->args));
@@ -165,12 +163,6 @@ int pn_dispatch_frame(pn_dispatcher_t *disp, pn_frame_t frame)
 
 ssize_t pn_dispatcher_input(pn_dispatcher_t *disp, const char *bytes, size_t available)
 {
-  size_t offered = available;
-
-  if (offered == disp->fragment) {
-    return 0;
-  }
-
   size_t leftover = pn_buffer_size(disp->input);
   if (leftover) {
     int e = pn_buffer_append(disp->input, bytes, available);
@@ -181,47 +173,30 @@ ssize_t pn_dispatcher_input(pn_dispatcher_t *disp, const char *bytes, size_t ava
   }
 
   size_t read = 0;
-  bool fragment = false;
 
   while (!disp->halt) {
     pn_frame_t frame;
 
     size_t n = pn_read_frame(&frame, bytes + read, available - read);
     if (n) {
-      disp->input_frames_ct += 1;
       int e = pn_dispatch_frame(disp, frame);
       if (e) return e;
       read += n;
     } else {
       if (leftover) {
-        if (read > leftover) {
-          pn_buffer_clear(disp->input);
-          fragment = true;
-        } else {
-          read = available;
-        }
+        pn_buffer_trim(disp->input, read, 0);
       } else {
-        if (!read) {
-          int e = pn_buffer_append(disp->input, bytes + read, available - read);
-          if (e) return e;
-          read = available;
-        } else {
-          fragment = true;
-        }
+        int e = pn_buffer_append(disp->input, bytes + read, available - read);
+        if (e) return e;
       }
+      read = available;
       break;
     }
 
     if (!disp->batch) break;
   }
 
-  size_t consumed = read - leftover;
-  if (consumed && fragment) {
-    disp->fragment = offered - consumed;
-  } else {
-    disp->fragment = 0;
-  }
-  return consumed;
+  return read - leftover;
 }
 
 int pn_scan_args(pn_dispatcher_t *disp, const char *fmt, ...)
@@ -277,9 +252,8 @@ int pn_post_frame(pn_dispatcher_t *disp, uint16_t ch, const char *fmt, ...)
   while (!(n = pn_write_frame(disp->output + disp->available,
                               disp->capacity - disp->available, frame))) {
     disp->capacity *= 2;
-    disp->output = (char *) realloc(disp->output, disp->capacity);
+    disp->output = (char *) realloc(disp->output, disp->capacity);  
   }
-  disp->output_frames_ct += 1;
   if (disp->trace & PN_TRACE_RAW) {
     fprintf(stderr, "RAW: \"");
     pn_fprint_data(stderr, disp->output + disp->available, n);
@@ -346,7 +320,7 @@ int pn_post_transfer_frame(pn_dispatcher_t *disp, uint16_t ch,
     size_t available = disp->output_size;
     if (disp->remote_max_frame) {
       if ((available + buf.size) > disp->remote_max_frame - 8) {
-        available = disp->remote_max_frame - 8 - buf.size;
+        available = disp->remote_max_frame-8 - buf.size;
         if (more_flag == false) {
           more_flag = true;
           goto compute_performatives;  // deal with flag change
@@ -358,17 +332,16 @@ int pn_post_transfer_frame(pn_dispatcher_t *disp, uint16_t ch,
       }
     }
 
-    if (pn_buffer_available( disp->frame ) < (available + buf.size)) {
+	if (pn_buffer_available( disp->frame ) < (available + buf.size)) {
       // not enough room for payload - try again...
       pn_buffer_ensure( disp->frame, available + buf.size );
       goto encode_performatives;
     }
-
-    pn_do_trace(disp, ch, OUT, disp->output_args, disp->output_payload, disp->output_size);
+	pn_do_trace(disp, ch, OUT, disp->output_args, disp->output_payload, disp->output_size);
 
     memmove( buf.start + buf.size, disp->output_payload, available);
-    disp->output_payload += available;
-    disp->output_size -= available;
+	disp->output_payload += available;
+	disp->output_size -= available;
     buf.size += available;
 
     pn_frame_t frame = {disp->frame_type};
@@ -380,9 +353,8 @@ int pn_post_transfer_frame(pn_dispatcher_t *disp, uint16_t ch,
     while (!(n = pn_write_frame(disp->output + disp->available,
                                 disp->capacity - disp->available, frame))) {
       disp->capacity *= 2;
-      disp->output = realloc(disp->output, disp->capacity);
+      disp->output = (char *) realloc(disp->output, disp->capacity);     // explicit cast
     }
-    disp->output_frames_ct += 1;
     if (disp->trace & PN_TRACE_RAW) {
       fprintf(stderr, "RAW: \"");
       pn_fprint_data(stderr, disp->output + disp->available, n);
@@ -394,3 +366,4 @@ int pn_post_transfer_frame(pn_dispatcher_t *disp, uint16_t ch,
   disp->output_payload = NULL;
   return 0;
 }
+

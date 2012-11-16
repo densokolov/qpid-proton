@@ -21,8 +21,13 @@
  * under the License.
  *
  */
+#ifdef	SWIG									// mdh --- for windows version
+	#define QPID_PROTON_API
+#endif
+
 
 #include <stdarg.h>
+#include "QPID_PROTON.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -37,19 +42,18 @@ typedef struct pn_error_t pn_error_t;
 #define PN_STATE_ERR (-5)
 #define PN_ARG_ERR (-6)
 #define PN_TIMEOUT (-7)
-#define PN_INTR (-8)
 
-const char *pn_code(int code);
+QPID_PROTON_API const char *pn_code(int code);
 
-pn_error_t *pn_error();
-void pn_error_free(pn_error_t *error);
-void pn_error_clear(pn_error_t *error);
-int pn_error_set(pn_error_t *error, int code, const char *text);
+QPID_PROTON_PY	pn_error_t *pn_error();
+QPID_PROTON_PY	void pn_error_free(pn_error_t *error);
+QPID_PROTON_PY	void pn_error_clear(pn_error_t *error);
+QPID_PROTON_PY	int pn_error_set(pn_error_t *error, int code, const char *text);
 int pn_error_vformat(pn_error_t *error, int code, const char *fmt, va_list ap);
 int pn_error_format(pn_error_t *error, int code, const char *fmt, ...);
-int pn_error_from_errno(pn_error_t *error, const char *msg);
-int pn_error_code(pn_error_t *error);
-const char *pn_error_text(pn_error_t *error);
+QPID_PROTON_PY	int pn_error_from_errno(pn_error_t *error, const char *msg);
+QPID_PROTON_PY	int pn_error_code(pn_error_t *error);
+QPID_PROTON_PY	const char *pn_error_text(pn_error_t *error);
 
 #ifdef __cplusplus
 }

@@ -23,8 +23,12 @@
  */
 
 #include <sys/types.h>
-#include <stdbool.h>
+
+#ifndef _WINDOWS					// mdh windows header changes
+	#include <stdbool.h>
+#endif
 #include <proton/engine.h>
+#include "QPID_Proton.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -65,14 +69,14 @@ typedef enum {
  *
  * @return a new SASL object representing the layer.
  */
-pn_sasl_t *pn_sasl(pn_transport_t *transport);
+QPID_PROTON_PY pn_sasl_t *pn_sasl(pn_transport_t *transport);
 
 /** Access the current state of the layer.
  *
  * @param[in] sasl the layer to retrieve the state from.
  * @return The state of the sasl layer.
  */
-pn_sasl_state_t pn_sasl_state(pn_sasl_t *sasl);
+QPID_PROTON_API pn_sasl_state_t pn_sasl_state(pn_sasl_t *sasl);
 
 /** Set the acceptable SASL mechanisms for the layer.
  *
@@ -80,7 +84,7 @@ pn_sasl_state_t pn_sasl_state(pn_sasl_t *sasl);
  * @param[in] mechanisms a list of acceptable SASL mechanisms,
  *                       separated by space
  */
-void pn_sasl_mechanisms(pn_sasl_t *sasl, const char *mechanisms);
+QPID_PROTON_API void pn_sasl_mechanisms(pn_sasl_t *sasl, const char *mechanisms);
 
 /** Retrieve the list of SASL mechanisms provided by the remote.
  *
@@ -88,7 +92,7 @@ void pn_sasl_mechanisms(pn_sasl_t *sasl, const char *mechanisms);
  * @return a string containing a list of the SASL mechanisms
  *         advertised by the remote (separated by spaces)
  */
-const char *pn_sasl_remote_mechanisms(pn_sasl_t *sasl);
+QPID_PROTON_API const char *pn_sasl_remote_mechanisms(pn_sasl_t *sasl);
 
 /** Configure the SASL layer to act as a SASL client.
  *
@@ -97,7 +101,7 @@ const char *pn_sasl_remote_mechanisms(pn_sasl_t *sasl);
  *
  * @param[in] sasl the SASL layer to configure as a client
  */
-void pn_sasl_client(pn_sasl_t *sasl);
+QPID_PROTON_API void pn_sasl_client(pn_sasl_t *sasl);
 
 /** Configure the SASL layer to act as a server.
  *
@@ -106,7 +110,7 @@ void pn_sasl_client(pn_sasl_t *sasl);
  *
  * @param[in] sasl the SASL layer to configure as a server
  */
-void pn_sasl_server(pn_sasl_t *sasl);
+QPID_PROTON_API void pn_sasl_server(pn_sasl_t *sasl);
 
 /** Configure the SASL layer to use the "PLAIN" mechanism.
  *
@@ -119,7 +123,7 @@ void pn_sasl_server(pn_sasl_t *sasl);
  * @param[in] password credential for the PLAIN authentication
  *                     mechanism
  */
-void pn_sasl_plain(pn_sasl_t *sasl, const char *username, const char *password);
+QPID_PROTON_API void pn_sasl_plain(pn_sasl_t *sasl, const char *username, const char *password);
 
 /** Determine the size of the bytes available via pn_sasl_recv().
  *
@@ -128,7 +132,7 @@ void pn_sasl_plain(pn_sasl_t *sasl, const char *username, const char *password);
  * @param[in] sasl the SASL layer.
  * @return The number of bytes available, zero if no available data.
  */
-size_t pn_sasl_pending(pn_sasl_t *sasl);
+QPID_PROTON_API size_t pn_sasl_pending(pn_sasl_t *sasl);
 
 /** Read challenge/response data sent from the peer.
  *
@@ -139,7 +143,7 @@ size_t pn_sasl_pending(pn_sasl_t *sasl);
  * @param[in] size maximum number of bytes that bytes can accept.
  * @return The number of bytes written to bytes, or an error code if < 0.
  */
-ssize_t pn_sasl_recv(pn_sasl_t *sasl, char *bytes, size_t size);
+QPID_PROTON_API ssize_t pn_sasl_recv(pn_sasl_t *sasl, char *bytes, size_t size);
 
 /** Send challenge or response data to the peer.
  *
@@ -148,7 +152,7 @@ ssize_t pn_sasl_recv(pn_sasl_t *sasl, char *bytes, size_t size);
  * @param[in] size The number of data octets in bytes.
  * @return The number of octets read from bytes, or an error code if < 0
  */
-ssize_t pn_sasl_send(pn_sasl_t *sasl, const char *bytes, size_t size);
+QPID_PROTON_API ssize_t pn_sasl_send(pn_sasl_t *sasl, const char *bytes, size_t size);
 
 /** Set the outcome of SASL negotiation
  *
@@ -156,13 +160,13 @@ ssize_t pn_sasl_send(pn_sasl_t *sasl, const char *bytes, size_t size);
  *
  * @todo
  */
-void pn_sasl_done(pn_sasl_t *sasl, pn_sasl_outcome_t outcome);
+QPID_PROTON_API void pn_sasl_done(pn_sasl_t *sasl, pn_sasl_outcome_t outcome);
 
 /** Retrieve the outcome of SASL negotiation.
  *
  * @todo
  */
-pn_sasl_outcome_t pn_sasl_outcome(pn_sasl_t *sasl);
+QPID_PROTON_PY	pn_sasl_outcome_t pn_sasl_outcome(pn_sasl_t *sasl);
 
 #ifdef __cplusplus
 }

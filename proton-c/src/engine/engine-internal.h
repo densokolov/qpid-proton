@@ -79,6 +79,7 @@ typedef struct {
   pn_sequence_t outgoing_transfer_count;
   pn_sequence_t outgoing_window;
   pn_link_state_t *links;
+  // mdh put back the way it was.  pn_link_state_t *links;   
   size_t link_capacity;
   pn_link_state_t **handles;
   size_t handle_capacity;
@@ -99,7 +100,6 @@ typedef struct {
 struct pn_transport_t {
   ssize_t (*process_input)(pn_transport_t *, const char *, size_t);
   ssize_t (*process_output)(pn_transport_t *, char *, size_t);
-  pn_timestamp_t (*process_tick)(pn_transport_t *, pn_timestamp_t);
   size_t header_count;
   pn_sasl_t *sasl;
   pn_ssl_t *ssl;
@@ -115,17 +115,6 @@ struct pn_transport_t {
   pn_data_t *remote_desired_capabilities;
   uint32_t   local_max_frame;
   uint32_t   remote_max_frame;
-
-  /* dead remote detection */
-  pn_millis_t local_idle_timeout;
-  pn_timestamp_t dead_remote_deadline;
-  uint64_t last_bytes_input;
-
-  /* keepalive */
-  pn_millis_t remote_idle_timeout;
-  pn_timestamp_t keepalive_deadline;
-  uint64_t last_bytes_output;
-
   pn_error_t *error;
   pn_session_state_t *sessions;
   size_t session_capacity;
@@ -133,10 +122,6 @@ struct pn_transport_t {
   size_t channel_capacity;
   const char *condition;
   char scratch[SCRATCH];
-
-  /* statistics */
-  uint64_t bytes_input;
-  uint64_t bytes_output;
 };
 
 struct pn_connection_t {
@@ -206,6 +191,7 @@ struct pn_link_t {
   void *context;
 };
 
+
 struct pn_delivery_t {
   pn_link_t *link;
   pn_buffer_t *tag;
@@ -238,6 +224,37 @@ struct pn_delivery_t {
   (OLD) = ((OLD) & PN_LOCAL_MASK) | (NEW)
 
 void pn_link_dump(pn_link_t *link);
+#ifdef _WINDOWS
+
+#define PN_ENSURE(ARRAY, CAPACITY, COUNT, PNTYPE)     \
+  while ((CAPACITY) < (COUNT))  {                     \
+    (CAPACITY) = (CAPACITY) ? 2 * (CAPACITY) : 16;   \
+    (ARRAY) = (PNTYPE) realloc((ARRAY), (CAPACITY) * sizeof (*(ARRAY))); \
+  }
+
+#define PN_ENSUREZ(ARRAY, CAPACITY, COUNT, PNTYPE)                \
+  {                                                        \
+    size_t _old_capacity = (CAPACITY);                     \
+    PN_ENSURE((ARRAY), (CAPACITY), (COUNT), PNTYPE);              \
+    memset((ARRAY) + _old_capacity, 0,                     \
+           sizeof(*(ARRAY))*((CAPACITY) - _old_capacity)); \
+  }
+
+#else
+#define PN_ENSURE(ARRAY, CAPACITY, COUNT)                      \
+  while ((CAPACITY) < (COUNT)) {                                \
+    (CAPACITY) = (CAPACITY) ? 2 * (CAPACITY) : 16;              \
+    (ARRAY) = realloc((ARRAY), (CAPACITY) * sizeof (*(ARRAY))); \
+  }                                                             \
+
+#define PN_ENSUREZ(ARRAY, CAPACITY, COUNT)                \
+  {                                                        \
+    size_t _old_capacity = (CAPACITY);                     \
+    PN_ENSURE((ARRAY), (CAPACITY), (COUNT));              \
+    memset((ARRAY) + _old_capacity, 0,                     \
+           sizeof(*(ARRAY))*((CAPACITY) - _old_capacity)); \
+  }
+#endif
 
 void pn_dump(pn_connection_t *conn);
 void pn_transport_sasl_init(pn_transport_t *transport);

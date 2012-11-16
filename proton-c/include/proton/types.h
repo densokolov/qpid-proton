@@ -24,6 +24,7 @@
 
 #include <sys/types.h>
 #include <stdint.h>
+#include "QPID_PROTON.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -32,7 +33,7 @@ extern "C" {
 typedef int32_t  pn_sequence_t;
 typedef uint32_t pn_millis_t;
 typedef uint32_t pn_seconds_t;
-typedef int64_t  pn_timestamp_t;
+typedef uint64_t pn_timestamp_t;
 typedef uint32_t pn_char_t;
 typedef uint32_t pn_decimal32_t;
 typedef uint64_t pn_decimal64_t;
@@ -48,8 +49,8 @@ typedef struct {
   char *start;
 } pn_bytes_t;
 
-pn_bytes_t pn_bytes(size_t size, char *start);
-pn_bytes_t pn_bytes_dup(size_t size, const char *start);
+QPID_PROTON_PY	pn_bytes_t pn_bytes(size_t size, char *start);
+QPID_PROTON_PY	pn_bytes_t pn_bytes_dup(size_t size, const char *start);
 
 #ifdef __cplusplus
 }

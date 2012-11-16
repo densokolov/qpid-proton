@@ -21,7 +21,9 @@
 
 #include <proton/buffer.h>
 #include <proton/error.h>
-#include <stdbool.h>
+#ifndef _WINDOWS								// mdh windows header changes
+	#include <stdbool.h>
+#endif
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
@@ -35,7 +37,7 @@ struct pn_buffer_t {
 };
 
 pn_buffer_t *pn_buffer(size_t capacity)
-{
+{ 
   pn_buffer_t *buf = (pn_buffer_t *) malloc(sizeof(pn_buffer_t));
   buf->capacity = capacity;
   buf->start = 0;
@@ -132,7 +134,7 @@ int pn_buffer_ensure(pn_buffer_t *buf, size_t size)
   }
 
   if (buf->capacity != old_capacity) {
-    buf->bytes = realloc(buf->bytes, buf->capacity);
+    buf->bytes = (char *)realloc(buf->bytes, buf->capacity);		// explicit cast
 
     if (wrapped) {
       size_t n = old_capacity - old_head;
@@ -210,7 +212,7 @@ size_t pn_buffer_get(pn_buffer_t *buf, size_t offset, size_t size, char *dst)
     sz2 = 0;
   }
 
-  memmove(dst, buf->bytes + start, sz1);
+  memmove(dst, buf->bytes + start, sz1);      
   memmove(dst + sz1, buf->bytes, sz2);
 
   return sz1 + sz2;

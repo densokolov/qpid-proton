@@ -23,7 +23,9 @@
  */
 
 #include <sys/types.h>
+#ifndef		_WINDOWS
 #include <stdbool.h>
+#endif
 #include <proton/buffer.h>
 #include <proton/codec.h>
 
@@ -34,13 +36,16 @@ typedef int (pn_action_t)(pn_dispatcher_t *disp);
 #define SCRATCH (1024)
 #define CODEC_LIMIT (1024)
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 struct pn_dispatcher_t {
   pn_action_t *actions[256];
   const char *names[256];
   uint8_t frame_type;
   pn_trace_t trace;
   pn_buffer_t *input;
-  size_t fragment;
   uint16_t channel;
   uint8_t code;
   pn_data_t *args;
@@ -52,13 +57,11 @@ struct pn_dispatcher_t {
   size_t remote_max_frame;
   pn_buffer_t *frame;  // frame under construction
   size_t capacity;
-  size_t available; /* number of raw bytes pending output */
+  size_t available;
   char *output;
   void *context;
   bool halt;
   bool batch;
-  uint64_t output_frames_ct;
-  uint64_t input_frames_ct;
   char scratch[SCRATCH];
 };
 
@@ -80,4 +83,9 @@ int pn_post_transfer_frame(pn_dispatcher_t *disp,
                            uint32_t message_format,
                            bool settled,
                            bool more);
+
+#ifdef __cplusplus
+}
+#endif
+
 #endif /* dispatcher.h */

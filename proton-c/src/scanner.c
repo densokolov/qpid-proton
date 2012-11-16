@@ -21,11 +21,19 @@
 
 #include <proton/scanner.h>
 #include <proton/error.h>
+
+#ifdef _WINDOWS
+#include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
+#include "util.h"
+#else
 #include <stdbool.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 #include <strings.h>
+#endif
 
 #define ERROR_SIZE (1024)
 
@@ -92,7 +100,13 @@ pn_token_t pn_scanner_token(pn_scanner_t *scanner)
   if (scanner) {
     return scanner->token;
   } else {
+#ifdef _WINDOWS
+	pn_token_t pnToken;
+	pnToken.type = PN_TOK_ERR;
+	return pnToken;
+#else
     return (pn_token_t) {PN_TOK_ERR};
+#endif
   }
 }
 
@@ -136,9 +150,7 @@ int pn_scanner_verr(pn_scanner_t *scanner, int code, const char *fmt, va_list ap
   } else if (ln < 0) {
     error[0] = '\0';
   }
-
   int n = snprintf(error + ln, ERROR_SIZE - ln, fmt, ap);
-
   if (n >= ERROR_SIZE - ln) {
     return pn_scanner_err(scanner, code, "error info truncated");
   } else if (n < 0) {

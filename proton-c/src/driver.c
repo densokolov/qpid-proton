@@ -19,23 +19,31 @@
  *
  */
 
-#include <assert.h>
-#include <poll.h>
-#include <stdio.h>
-#include <time.h>
-#include <ctype.h>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <netdb.h>
-#include <unistd.h>
-#include <fcntl.h>
+#define _POSIX_C_SOURCE 1
 
+#ifdef _WINDOWS								// mdh added windows headers
+	#include <BaseTsd.h>
+	#include <winsock2.h>
+	#include <ws2tcpip.h>
+	#include <io.h>
+	#include <crtdefs.h>
+	#include <assert.h>
+#else
+	#include <poll.h>
+	#include <stdio.h>
+	#include <time.h>
+	#include <ctype.h>
+	#include <sys/types.h>
+	#include <sys/socket.h>
+	#include <netinet/in.h>
+	#include <netdb.h>
+	#include <unistd.h>
+#endif
+#include <fcntl.h>
 #include <proton/driver.h>
 #include <proton/error.h>
 #include <proton/sasl.h>
 #include <proton/ssl.h>
-#include <proton/util.h>
 #include "util.h"
 #include "ssl/ssl-internal.h"
 
@@ -54,13 +62,12 @@ struct pn_driver_t {
   pn_connector_t *connector_next;
   size_t listener_count;
   size_t connector_count;
-  size_t closed_count;
+  size_t closed_count;			
   size_t capacity;
   struct pollfd *fds;
   size_t nfds;
-  int ctrl[2]; //pipe for updating selectable status
+  pn_socket_t ctrl[2]; //pipe for updating selectable status		mdh socket pair
   pn_trace_t trace;
-  pn_timestamp_t wakeup;
 };
 
 struct pn_listener_t {
@@ -69,11 +76,11 @@ struct pn_listener_t {
   pn_listener_t *listener_prev;
   int idx;
   bool pending;
-  int fd;
+  pn_socket_t fd;			// mdh socket pair
   void *context;
 };
 
-#define IO_BUF_SIZE (64*1024)
+#define IO_BUF_SIZE (4*1024)
 #define PN_NAME_MAX (256)
 
 struct pn_connector_t {
@@ -85,13 +92,14 @@ struct pn_connector_t {
   bool pending_tick;
   bool pending_read;
   bool pending_write;
-  int fd;
+  pn_socket_t fd;			// mdh socket pair
   int status;
   pn_trace_t trace;
   bool closed;
-  pn_timestamp_t wakeup;
+  time_t wakeup;
   void (*read)(pn_connector_t *);
   void (*write) (pn_connector_t *);
+  time_t (*tick)(pn_connector_t *sel, time_t now);
   size_t input_size;
   char input[IO_BUF_SIZE];
   bool input_eos;
@@ -107,6 +115,7 @@ struct pn_connector_t {
 };
 
 /* Impls */
+static int pn_socket_pair(SOCKET sv[2]);				// mdh socket pair
 
 // listener
 
@@ -131,6 +140,11 @@ static void pn_driver_remove_listener(pn_driver_t *d, pn_listener_t *l)
   d->listener_count--;
 }
 
+int GetHostName(char *name, int namelen)
+{
+	return gethostname(name, namelen);
+}
+
 pn_listener_t *pn_listener(pn_driver_t *driver, const char *host,
                            const char *port, void* context)
 {
@@ -143,13 +157,16 @@ pn_listener_t *pn_listener(pn_driver_t *driver, const char *host,
     return NULL;
   }
 
-  int sock = socket(AF_INET, SOCK_STREAM, getprotobyname("tcp")->p_proto);
-  if (sock == -1) {
+  pn_socket_t sock = socket(AF_INET, SOCK_STREAM, getprotobyname("tcp")->p_proto);
+  if (sock == -1) {	
     pn_error_from_errno(driver->error, "socket");
     return NULL;
   }
-
+#ifdef	_WINDOWS
+  const char optval = 1;
+#else
   int optval = 1;
+#endif
   if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &optval, sizeof(optval)) == -1) {
     pn_error_from_errno(driver->error, "setsockopt");
     return NULL;
@@ -163,7 +180,7 @@ pn_listener_t *pn_listener(pn_driver_t *driver, const char *host,
 
   freeaddrinfo(addr);
 
-  if (listen(sock, 50) == -1) {
+  if (listen(sock, 50) == -1) {	
     pn_error_from_errno(driver->error, "listen");
     return NULL;
   }
@@ -175,7 +192,7 @@ pn_listener_t *pn_listener(pn_driver_t *driver, const char *host,
   return l;
 }
 
-pn_listener_t *pn_listener_fd(pn_driver_t *driver, int fd, void *context)
+pn_listener_t *pn_listener_fd(pn_driver_t *driver, pn_socket_t fd, void *context)  // mdh socket pair support
 {
   if (!driver) return NULL;
 
@@ -217,7 +234,7 @@ void pn_listener_set_context(pn_listener_t *listener, void *context)
   listener->context = context;
 }
 
-static void pn_configure_sock(int sock) {
+static void pn_configure_sock(pn_socket_t sock) {
   // this would be nice, but doesn't appear to exist on linux
   /*
   int set = 1;
@@ -226,12 +243,15 @@ static void pn_configure_sock(int sock) {
   };
   */
 
+// mdh may need a windows version
+#ifndef _WINDOWS
     int flags = fcntl(sock, F_GETFL);
     flags |= O_NONBLOCK;
 
     if (fcntl(sock, F_SETFL, flags) < 0) {
         perror("fcntl");
     }
+#endif
 }
 
 pn_connector_t *pn_listener_accept(pn_listener_t *l)
@@ -241,8 +261,8 @@ pn_connector_t *pn_listener_accept(pn_listener_t *l)
   struct sockaddr_in addr = {0};
   addr.sin_family = AF_INET;
   socklen_t addrlen = sizeof(addr);
-  int sock = accept(l->fd, (struct sockaddr *) &addr, &addrlen);
-  if (sock == -1) {
+  pn_socket_t sock = accept(l->fd, (struct sockaddr *) &addr, &addrlen);
+  if (sock == -1) { 
     perror("accept");
     return NULL;
   } else {
@@ -250,8 +270,12 @@ pn_connector_t *pn_listener_accept(pn_listener_t *l)
     int code;
     if ((code = getnameinfo((struct sockaddr *) &addr, addrlen, host, 1024, serv, 64, 0))) {
       fprintf(stderr, "getnameinfo: %s\n", gai_strerror(code));
-      if (close(sock) == -1)
-        perror("close");
+#ifdef		_WINDOWS								// mdh 
+      if (closesocket(sock) == -1)
+#else
+      if (close(sock) == -1)		
+#endif
+		 perror("close");
       return NULL;
     } else {
       pn_configure_sock(sock);
@@ -269,7 +293,11 @@ void pn_listener_close(pn_listener_t *l)
 {
   if (!l) return;
 
+#ifdef		_WINDOWS								// mdh use Winsock function
+  if (closesocket(l->fd) == -1)
+#else
   if (close(l->fd) == -1)
+#endif
     perror("close");
 }
 
@@ -319,7 +347,7 @@ pn_connector_t *pn_connector(pn_driver_t *driver, const char *host,
     return NULL;
   }
 
-  int sock = socket(AF_INET, SOCK_STREAM, getprotobyname("tcp")->p_proto);
+  SOCKET sock = socket(AF_INET, SOCK_STREAM, getprotobyname("tcp")->p_proto);   // mdh
   if (sock == -1) {
     pn_error_from_errno(driver->error, "socket");
     return NULL;
@@ -343,8 +371,9 @@ pn_connector_t *pn_connector(pn_driver_t *driver, const char *host,
 
 static void pn_connector_read(pn_connector_t *ctor);
 static void pn_connector_write(pn_connector_t *ctor);
+static time_t pn_connector_tick(pn_connector_t *ctor, time_t now);
 
-pn_connector_t *pn_connector_fd(pn_driver_t *driver, int fd, void *context)
+pn_connector_t *pn_connector_fd(pn_driver_t *driver, pn_socket_t fd, void *context)		// mdh socket pair
 {
   if (!driver) return NULL;
 
@@ -365,6 +394,7 @@ pn_connector_t *pn_connector_fd(pn_driver_t *driver, int fd, void *context)
   c->wakeup = 0;
   c->read = pn_connector_read;
   c->write = pn_connector_write;
+  c->tick = pn_connector_tick;
   c->input_size = 0;
   c->input_eos = false;
   c->output_size = 0;
@@ -444,7 +474,11 @@ void pn_connector_close(pn_connector_t *ctor)
   if (!ctor) return;
 
   ctor->status = 0;
+#ifndef _WINDOWS							// mdh windows support
   if (close(ctor->fd) == -1)
+#else
+  if (closesocket(ctor->fd) == -1)
+#endif
     perror("close");
   ctor->closed = true;
   ctor->driver->closed_count++;
@@ -519,8 +553,8 @@ static void pn_connector_process_output(pn_connector_t *ctor)
 {
   pn_transport_t *transport = ctor->transport;
   if (!ctor->output_done) {
-    ssize_t n = pn_transport_output(transport, pn_connector_output(ctor),
-                                    pn_connector_available(ctor));
+    ssize_t n = pn_transport_output(transport, pn_connector_output(ctor), 
+		                            pn_connector_available(ctor));
     if (n >= 0) {
       ctor->output_size += n;
     } else {
@@ -532,7 +566,6 @@ static void pn_connector_process_output(pn_connector_t *ctor)
     ctor->status |= PN_SEL_WR;
   }
 }
-
 
 void pn_connector_activate(pn_connector_t *ctor, pn_activate_criteria_t crit)
 {
@@ -546,7 +579,6 @@ void pn_connector_activate(pn_connector_t *ctor, pn_activate_criteria_t crit)
         break;
     }
 }
-
 
 static void pn_connector_write(pn_connector_t *ctor)
 {
@@ -569,25 +601,31 @@ static void pn_connector_write(pn_connector_t *ctor)
     ctor->status &= ~PN_SEL_WR;
 }
 
-static pn_timestamp_t pn_connector_tick(pn_connector_t *ctor, time_t now)
+static time_t pn_connector_tick(pn_connector_t *ctor, time_t now)
 {
   if (!ctor->transport) return 0;
-  return pn_transport_tick(ctor->transport, now);
+  // XXX: should probably have a function pointer for this and switch it with different layers
+  time_t result = pn_transport_tick(ctor->transport, now);
+  pn_connector_process_input(ctor);
+  pn_connector_process_output(ctor);
+  return result;
 }
 
-void pn_connector_process(pn_connector_t *c)
-{
+void pn_connector_process(pn_connector_t *c) {
   if (c) {
     if (c->closed) return;
+
+    if (c->pending_tick) {
+      // XXX: should handle timing also
+      c->tick(c, 0);
+      c->pending_tick = false;
+    }
 
     if (c->pending_read) {
       c->read(c);
       c->pending_read = false;
     }
     pn_connector_process_input(c);
-
-    c->wakeup = pn_connector_tick(c, pn_driver_now(c->driver));
-
     pn_connector_process_output(c);
     if (c->pending_write) {
       c->write(c);
@@ -607,7 +645,7 @@ void pn_connector_process(pn_connector_t *c)
 
 pn_driver_t *pn_driver()
 {
-  pn_driver_t *d = (pn_driver_t *) malloc(sizeof(pn_driver_t));
+  pn_driver_t *d = (pn_driver_t *) malloc(sizeof(pn_driver_t));	
   if (!d) return NULL;
   d->error = pn_error();
   d->listener_head = NULL;
@@ -627,12 +665,27 @@ pn_driver_t *pn_driver()
   d->trace = ((pn_env_bool("PN_TRACE_RAW") ? PN_TRACE_RAW : PN_TRACE_OFF) |
               (pn_env_bool("PN_TRACE_FRM") ? PN_TRACE_FRM : PN_TRACE_OFF) |
               (pn_env_bool("PN_TRACE_DRV") ? PN_TRACE_DRV : PN_TRACE_OFF));
-  d->wakeup = 0;
 
   // XXX
+#ifdef _WINDOWS
+  int err = 0;
+  WORD wVersionRequested;
+  WSADATA wsaData;
+
+  // Request WinSock 2.2 
+  wVersionRequested = MAKEWORD(2, 2);
+  err = WSAStartup(wVersionRequested, &wsaData);
+		
+  if (pn_socket_pair(d->ctrl)) {  // mdh socket pair	
+    perror("Can't socket pair");
+    free(d);
+    return NULL;
+  }
+#else
   if (pipe(d->ctrl)) {
     perror("Can't create control pipe");
   }
+#endif
 
   return d;
 }
@@ -655,9 +708,13 @@ void pn_driver_trace(pn_driver_t *d, pn_trace_t trace)
 void pn_driver_free(pn_driver_t *d)
 {
   if (!d) return;
-
+#ifdef _WINDOWS									// mdh don't use close()
+  closesocket(d->ctrl[0]);
+  closesocket(d->ctrl[1]);
+#else
   close(d->ctrl[0]);
   close(d->ctrl[1]);
+#endif
   while (d->connector_head)
     pn_connector_free(d->connector_head);
   while (d->listener_head)
@@ -665,12 +722,19 @@ void pn_driver_free(pn_driver_t *d)
   free(d->fds);
   pn_error_free(d->error);
   free(d);
+#ifdef _WINDOWS
+  WSACleanup();					// mdh cleanup Windows socket library 
+#endif
 }
 
 int pn_driver_wakeup(pn_driver_t *d)
 {
   if (d) {
+#ifdef _WINDOWS
+    ssize_t count =send(d->ctrl[1], "x", 1, 0);
+#else
     ssize_t count = write(d->ctrl[1], "x", 1);
+#endif
     if (count <= 0) {
       return count;
     } else {
@@ -689,17 +753,16 @@ static void pn_driver_rebuild(pn_driver_t *d)
     d->fds = (struct pollfd *) realloc(d->fds, d->capacity*sizeof(struct pollfd));
   }
 
-  d->wakeup = 0;
   d->nfds = 0;
 
-  d->fds[d->nfds].fd = d->ctrl[0];
+  d->fds[d->nfds].fd = d->ctrl[0];				// mdh
   d->fds[d->nfds].events = POLLIN;
   d->fds[d->nfds].revents = 0;
   d->nfds++;
 
   pn_listener_t *l = d->listener_head;
   for (int i = 0; i < d->listener_count; i++) {
-    d->fds[d->nfds].fd = l->fd;
+    d->fds[d->nfds].fd = l->fd;						
     d->fds[d->nfds].events = POLLIN;
     d->fds[d->nfds].revents = 0;
     l->idx = d->nfds;
@@ -711,7 +774,6 @@ static void pn_driver_rebuild(pn_driver_t *d)
   for (int i = 0; i < d->connector_count; i++)
   {
     if (!c->closed) {
-      d->wakeup = pn_timestamp_min(d->wakeup, c->wakeup);
       d->fds[d->nfds].fd = c->fd;
       d->fds[d->nfds].events = (c->status & PN_SEL_RD ? POLLIN : 0) | (c->status & PN_SEL_WR ? POLLOUT : 0);
       d->fds[d->nfds].revents = 0;
@@ -727,18 +789,13 @@ void pn_driver_wait_1(pn_driver_t *d)
   pn_driver_rebuild(d);
 }
 
-int pn_driver_wait_2(pn_driver_t *d, int timeout)
+void pn_driver_wait_2(pn_driver_t *d, int timeout)
 {
-  if (d->wakeup) {
-    pn_timestamp_t now = pn_driver_now(d);
-    if (now >= d->wakeup)
-      timeout = 0;
-    else
-      timeout = (timeout < 0) ? d->wakeup-now : pn_min(timeout, d->wakeup - now);
-  }
-  if (poll(d->fds, d->nfds, d->closed_count > 0 ? 0 : timeout) == -1)
-    return pn_error_from_errno(d->error, "poll");
-  return 0;
+#ifndef _WINDOWS
+  DIE_IFE(poll(d->fds, d->nfds, d->closed_count > 0 ? 0 : timeout));
+#else
+  DIE_IFE(WSAPoll(d->fds, d->nfds, d->closed_count > 0 ? 0 : timeout));				// mdh  -- windows
+#endif
 }
 
 void pn_driver_wait_3(pn_driver_t *d)
@@ -746,7 +803,11 @@ void pn_driver_wait_3(pn_driver_t *d)
   if (d->fds[0].revents & POLLIN) {
     //clear the pipe
     char buffer[512];
-    while (read(d->ctrl[0], buffer, 512) == 512);
+#ifdef _WINDOWS
+    while (recv(d->ctrl[0], buffer, 512, 0) == 512);
+#else
+	while (read(d->ctrl[0], buffer, 512) == 512);
+#endif
   }
 
   pn_listener_t *l = d->listener_head;
@@ -755,7 +816,6 @@ void pn_driver_wait_3(pn_driver_t *d)
     l = l->listener_next;
   }
 
-  pn_timestamp_t now = pn_driver_now(d);
   pn_connector_t *c = d->connector_head;
   while (c) {
     if (c->closed) {
@@ -766,7 +826,6 @@ void pn_driver_wait_3(pn_driver_t *d)
       int idx = c->idx;
       c->pending_read = (idx && d->fds[idx].revents & POLLIN);
       c->pending_write = (idx && d->fds[idx].revents & POLLOUT);
-      c->pending_tick = (c->wakeup &&  c->wakeup <= now);
     }
     c = c->connector_next;
   }
@@ -785,14 +844,11 @@ void pn_driver_wait_3(pn_driver_t *d)
 //       This workaround will eventually be replaced by a more elegant solution
 //       to the problem.
 //
-int pn_driver_wait(pn_driver_t *d, int timeout)
+void pn_driver_wait(pn_driver_t *d, int timeout)
 {
     pn_driver_wait_1(d);
-    int error = pn_driver_wait_2(d, timeout);
-    if (error)
-        return error;
+    pn_driver_wait_2(d, timeout);
     pn_driver_wait_3(d);
-    return 0;
 }
 
 pn_listener_t *pn_driver_listener(pn_driver_t *d) {
@@ -826,9 +882,73 @@ pn_connector_t *pn_driver_connector(pn_driver_t *d) {
   return NULL;
 }
 
-pn_timestamp_t pn_driver_now(pn_driver_t *driver)
-{
-  struct timespec now;
-  if (clock_gettime(CLOCK_REALTIME, &now)) pn_fatal("clock_gettime() failed\n");
-  return ((pn_timestamp_t)now.tv_sec) * 1000 + (now.tv_nsec / 1000000);
+int pn_socket_pair (SOCKET sv[2]) {
+  // no socketpair on windows.  provide pipe() semantics using sockets
+// mdh
+  SOCKET sock = socket(AF_INET, SOCK_STREAM, getprotobyname("tcp")->p_proto);
+  if (sock == INVALID_SOCKET) {
+    perror("socket");
+    return -1;
+  }
+
+  BOOL b = 1;
+  if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, (const char *) &b, sizeof(b)) == -1) {
+    perror("setsockopt");
+    closesocket(sock);
+    return -1;
+  }
+  else {
+    struct sockaddr_in addr = {0};
+    addr.sin_family = AF_INET;
+    addr.sin_port = 0;
+    addr.sin_addr.s_addr = htonl (INADDR_LOOPBACK);
+
+    if (bind(sock, (struct sockaddr *)&addr, sizeof(addr)) == -1) {
+      perror("bind");
+      closesocket(sock);
+      return -1;
+    }
+  }
+
+  if (listen(sock, 50) == -1) {
+    perror("listen");
+    closesocket(sock);
+    return -1;
+  }
+
+  if ((sv[1] = socket(AF_INET, SOCK_STREAM, getprotobyname("tcp")->p_proto)) == INVALID_SOCKET) {
+    perror("sock1");
+    closesocket(sock);
+    return -1;
+  }
+  else {
+    struct sockaddr addr = {0};
+    int l = sizeof(addr);
+    if (getsockname(sock, &addr, &l) == -1) {
+      perror("getsockname");
+      closesocket(sock);
+      return -1;
+    }
+
+    if (connect(sv[1], &addr, sizeof(addr)) == -1) {
+      int err = WSAGetLastError();
+      fprintf(stderr, "connect wsaerrr %d\n", err);
+      closesocket(sock);
+      closesocket(sv[1]);
+      return -1;
+    }
+
+    if ((sv[0] = accept(sock, &addr, &l)) == INVALID_SOCKET) {
+      perror("accept");
+      closesocket(sock);
+      closesocket(sv[1]);
+      return -1;
+    }
+  }
+
+  u_long v = 1;
+  ioctlsocket (sv[0], FIONBIO, &v);
+  ioctlsocket (sv[1], FIONBIO, &v);
+  closesocket(sock);
+  return 0;
 }

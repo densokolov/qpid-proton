@@ -58,7 +58,7 @@ int pn_do_outcome(pn_dispatcher_t *disp);
 pn_sasl_t *pn_sasl(pn_transport_t *transport)
 {
   if (!transport->sasl) {
-    pn_sasl_t *sasl = malloc(sizeof(pn_sasl_t));
+    pn_sasl_t *sasl = (pn_sasl_t *) malloc(sizeof(pn_sasl_t));            // explicit cast
     sasl->disp = pn_dispatcher(1, sasl);
     sasl->disp->batch = false;
 
@@ -180,7 +180,11 @@ void pn_sasl_plain(pn_sasl_t *sasl, const char *username, const char *password)
   size_t usize = strlen(user);
   size_t psize = strlen(pass);
   size_t size = usize + psize + 2;
+#ifdef _WINDOWS
+  char *iresp = (char *) malloc(size);
+#else
   char iresp[size];
+#endif
 
   iresp[0] = 0;
   memmove(iresp + 1, user, usize);
@@ -190,6 +194,9 @@ void pn_sasl_plain(pn_sasl_t *sasl, const char *username, const char *password)
   pn_sasl_mechanisms(sasl, "PLAIN");
   pn_sasl_send(sasl, iresp, size);
   pn_sasl_client(sasl);
+#ifdef			_WINDOWS				// mdh VLA
+	free(iresp);
+#endif
 }
 
 void pn_sasl_done(pn_sasl_t *sasl, pn_sasl_outcome_t outcome)
@@ -300,7 +307,7 @@ void pn_sasl_process(pn_sasl_t *sasl)
   }
 }
 
-ssize_t pn_sasl_input(pn_sasl_t *sasl, char *bytes, size_t available)
+ssize_t pn_sasl_input(pn_sasl_t *sasl, const char *bytes, size_t available)
 {
   ssize_t n = pn_dispatcher_input(sasl->disp, bytes, available);
   if (n < 0) return n;
@@ -361,7 +368,7 @@ int pn_do_mechanisms(pn_dispatcher_t *disp)
 
 int pn_do_recv(pn_dispatcher_t *disp)
 {
-  pn_sasl_t *sasl = disp->context;
+  pn_sasl_t *sasl = (pn_sasl_t *) disp->context;         // explicit cast
   pn_bytes_t recv;
   int err = pn_scan_args(disp, "D.[z]", &recv);
   if (err) return err;
@@ -381,11 +388,11 @@ int pn_do_response(pn_dispatcher_t *disp)
 
 int pn_do_outcome(pn_dispatcher_t *disp)
 {
-  pn_sasl_t *sasl = disp->context;
+  pn_sasl_t *sasl = (pn_sasl_t *) disp->context;            // explicit cast
   uint8_t outcome;
   int err = pn_scan_args(disp, "D.[B]", &outcome);
   if (err) return err;
-  sasl->outcome = outcome;
+  sasl->outcome = (pn_sasl_outcome_t) outcome;            // explicit cast
   sasl->rcvd_done = true;
   sasl->sent_done = true;
   disp->halt = true;

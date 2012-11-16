@@ -21,11 +21,25 @@
  * under the License.
  *
  */
+#ifdef _WINDOWS									// mdh Windows header support
+	#include <BaseTsd.h>
+	#define ssize_t SSIZE_T
+#endif
 
 #include <proton/error.h>
 #include <proton/engine.h>
 #include <proton/sasl.h>
 #include <proton/ssl.h>
+
+#ifdef _WINDOWS
+	#include <WinSock2.h>
+	typedef SOCKET pn_socket_t;
+#else
+	typedef int pn_socket_t;
+#endif
+
+#define	PN_SOCK_ERR  -1
+
 
 #ifdef __cplusplus
 extern "C" {
@@ -37,12 +51,12 @@ extern "C" {
  * The driver library provides a simple implementation of a driver for
  * the proton engine. A driver is responsible for providing input,
  * output, and tick events to the bottom half of the engine API. See
- * ::pn_transport_input, ::pn_transport_output, and
- * ::pn_transport_tick. The driver also provides an interface for the
- * application to access the top half of the API when the state of the
- * engine may have changed due to I/O or timing events. Additionally
- * the driver incorporates the SASL engine as well in order to provide
- * a complete network stack: AMQP over SASL over TCP.
+ * ::pn_input, ::pn_output, and ::pn_tick. The driver also provides an
+ * interface for the application to access the top half of the API
+ * when the state of the engine may have changed due to I/O or timing
+ * events. Additionally the driver incorporates the SASL engine as
+ * well in order to provide a complete network stack: AMQP over SASL
+ * over TCP.
  *
  */
 
@@ -60,7 +74,7 @@ typedef enum {
  *  Call pn_driver_free() to release the driver object.
  *  @return new driver object, NULL if error
  */
-pn_driver_t *pn_driver(void);
+QPID_PROTON_API pn_driver_t *pn_driver(void);
 
 /** Return the most recent error code.
  *
@@ -68,7 +82,7 @@ pn_driver_t *pn_driver(void);
  *
  * @return the most recent error text for d
  */
-int pn_driver_errno(pn_driver_t *d);
+QPID_PROTON_PY	int pn_driver_errno(pn_driver_t *d);
 
 /** Return the most recent error text for d.
  *
@@ -76,7 +90,7 @@ int pn_driver_errno(pn_driver_t *d);
  *
  * @return the most recent error text for d
  */
-const char *pn_driver_error(pn_driver_t *d);
+QPID_PROTON_PY	const char *pn_driver_error(pn_driver_t *d);
 
 /** Set the tracing level for the given driver.
  *
@@ -84,7 +98,7 @@ const char *pn_driver_error(pn_driver_t *d);
  * @param[in] trace the trace level to use.
  * @todo pn_trace_t needs documentation
  */
-void pn_driver_trace(pn_driver_t *driver, pn_trace_t trace);
+QPID_PROTON_PY	void pn_driver_trace(pn_driver_t *driver, pn_trace_t trace);
 
 /** Force pn_driver_wait() to return
  *
@@ -92,24 +106,22 @@ void pn_driver_trace(pn_driver_t *driver, pn_trace_t trace);
  *
  * @return zero on success, an error code on failure
  */
-int pn_driver_wakeup(pn_driver_t *driver);
+QPID_PROTON_PY	int pn_driver_wakeup(pn_driver_t *driver);
 
 /** Wait for an active connector or listener
  *
  * @param[in] driver the driver to wait on
  * @param[in] timeout maximum time in milliseconds to wait, -1 means
  *                    infinite wait
- *
- * @return zero on success, an error code on failure
  */
-int pn_driver_wait(pn_driver_t *driver, int timeout);
+QPID_PROTON_API  void pn_driver_wait(pn_driver_t *driver, int timeout);
 
 /** Get the next listener with pending data in the driver.
  *
  * @param[in] driver the driver
  * @return NULL if no active listener available
  */
-pn_listener_t *pn_driver_listener(pn_driver_t *driver);
+QPID_PROTON_API  pn_listener_t *pn_driver_listener(pn_driver_t *driver);
 
 /** Get the next active connector in the driver.
  *
@@ -119,17 +131,7 @@ pn_listener_t *pn_driver_listener(pn_driver_t *driver);
  * @param[in] driver the driver
  * @return NULL if no active connector available
  */
-pn_connector_t *pn_driver_connector(pn_driver_t *driver);
-
-/** Get the current time in pn_timestamp_t format.
- *
- * Returns current time in milliseconds since Unix Epoch,
- * as defined by AMQP 1.0
- *
- * @param[in] driver the driver
- * @return current time
- */
-pn_timestamp_t pn_driver_now(pn_driver_t *driver);
+QPID_PROTON_API  pn_connector_t *pn_driver_connector(pn_driver_t *driver);
 
 /** Free the driver allocated via pn_driver, and all associated
  *  listeners and connectors.
@@ -137,7 +139,7 @@ pn_timestamp_t pn_driver_now(pn_driver_t *driver);
  * @param[in] driver the driver to free, no longer valid on
  *                   return
  */
-void pn_driver_free(pn_driver_t *driver);
+QPID_PROTON_API  void pn_driver_free(pn_driver_t *driver);
 
 
 /** pn_listener - the server API **/
@@ -151,7 +153,7 @@ void pn_driver_free(pn_driver_t *driver);
  *                    pn_listener_context()
  * @return a new listener on the given host:port, NULL if error
  */
-pn_listener_t *pn_listener(pn_driver_t *driver, const char *host,
+QPID_PROTON_API  pn_listener_t *pn_listener(pn_driver_t *driver, const char *host,
                            const char *port, void* context);
 
 /** Create a listener using the existing file descriptor.
@@ -162,7 +164,7 @@ pn_listener_t *pn_listener(pn_driver_t *driver, const char *host,
  *                    pn_listener_context()
  * @return a new listener on the given host:port, NULL if error
  */
-pn_listener_t *pn_listener_fd(pn_driver_t *driver, int fd, void *context);
+QPID_PROTON_API  pn_listener_t *pn_listener_fd(pn_driver_t *driver, pn_socket_t fd, void *context);
 
 /** Access the head listener for a driver.
  *
@@ -170,7 +172,7 @@ pn_listener_t *pn_listener_fd(pn_driver_t *driver, int fd, void *context);
  *
  * @return the head listener for driver or NULL if there is none
  */
-pn_listener_t *pn_listener_head(pn_driver_t *driver);
+QPID_PROTON_API  pn_listener_t *pn_listener_head(pn_driver_t *driver);
 
 /** Access the next listener.
  *
@@ -179,19 +181,19 @@ pn_listener_t *pn_listener_head(pn_driver_t *driver);
  *
  * @return the next listener
  */
-pn_listener_t *pn_listener_next(pn_listener_t *listener);
+QPID_PROTON_API  pn_listener_t *pn_listener_next(pn_listener_t *listener);
 
 /**
  * @todo pn_listener_trace needs documentation
  */
-void pn_listener_trace(pn_listener_t *listener, pn_trace_t trace);
+QPID_PROTON_PY	void pn_listener_trace(pn_listener_t *listener, pn_trace_t trace);
 
 /** Accept a connection that is pending on the listener.
  *
  * @param[in] listener the listener to accept the connection on
  * @return a new connector for the remote, or NULL on error
  */
-pn_connector_t *pn_listener_accept(pn_listener_t *listener);
+QPID_PROTON_API  pn_connector_t *pn_listener_accept(pn_listener_t *listener);
 
 /** Access the application context that is associated with the listener.
  *
@@ -199,15 +201,15 @@ pn_connector_t *pn_listener_accept(pn_listener_t *listener);
  * @return the application context that was passed to pn_listener() or
  *         pn_listener_fd()
  */
-void *pn_listener_context(pn_listener_t *listener);
+QPID_PROTON_PY	void *pn_listener_context(pn_listener_t *listener);
 
-void pn_listener_set_context(pn_listener_t *listener, void *context);
+QPID_PROTON_PY	void pn_listener_set_context(pn_listener_t *listener, void *context);
 
 /** Close the socket used by the listener.
  *
  * @param[in] listener the listener whose socket will be closed.
  */
-void pn_listener_close(pn_listener_t *listener);
+QPID_PROTON_PY	void pn_listener_close(pn_listener_t *listener);
 
 /** Frees the given listener.
  *
@@ -216,7 +218,7 @@ void pn_listener_close(pn_listener_t *listener);
  * @param[in] listener the listener object to free, no longer valid
  *            on return
  */
-void pn_listener_free(pn_listener_t *listener);
+QPID_PROTON_API  void pn_listener_free(pn_listener_t *listener);
 
 
 
@@ -232,7 +234,7 @@ void pn_listener_free(pn_listener_t *listener);
  *                    pn_connector_context() @return a new connector
  *                    to the given remote, or NULL on error.
  */
-pn_connector_t *pn_connector(pn_driver_t *driver, const char *host,
+QPID_PROTON_API  pn_connector_t *pn_connector(pn_driver_t *driver, const char *host,
                              const char *port, void* context);
 
 /** Create a connector using the existing file descriptor.
@@ -243,7 +245,7 @@ pn_connector_t *pn_connector(pn_driver_t *driver, const char *host,
  *                    pn_connector_context()
  * @return a new connector to the given host:port, NULL if error.
  */
-pn_connector_t *pn_connector_fd(pn_driver_t *driver, int fd, void *context);
+QPID_PROTON_PY	pn_connector_t *pn_connector_fd(pn_driver_t *driver, pn_socket_t fd, void *context);
 
 /** Access the head connector for a driver.
  *
@@ -251,7 +253,7 @@ pn_connector_t *pn_connector_fd(pn_driver_t *driver, int fd, void *context);
  *
  * @return the head connector for driver or NULL if there is none
  */
-pn_connector_t *pn_connector_head(pn_driver_t *driver);
+QPID_PROTON_PY	pn_connector_t *pn_connector_head(pn_driver_t *driver);
 
 /** Access the next connector.
  *
@@ -260,14 +262,14 @@ pn_connector_t *pn_connector_head(pn_driver_t *driver);
  *
  * @return the next connector
  */
-pn_connector_t *pn_connector_next(pn_connector_t *connector);
+QPID_PROTON_PY	pn_connector_t *pn_connector_next(pn_connector_t *connector);
 
 /** Set the tracing level for the given connector.
  *
  * @param[in] connector the connector to trace
  * @param[in] trace the trace level to use.
  */
-void pn_connector_trace(pn_connector_t *connector, pn_trace_t trace);
+QPID_PROTON_API  void pn_connector_trace(pn_connector_t *connector, pn_trace_t trace);
 
 /** Service the given connector.
  *
@@ -276,7 +278,7 @@ void pn_connector_trace(pn_connector_t *connector, pn_trace_t trace);
  *
  * @param[in] connector the connector to process.
  */
-void pn_connector_process(pn_connector_t *connector);
+QPID_PROTON_API  void pn_connector_process(pn_connector_t *connector);
 
 /** Access the listener which opened this connector.
  *
@@ -285,7 +287,7 @@ void pn_connector_process(pn_connector_t *connector);
  *         connector has no listener (e.g. an outbound client
  *         connection)
  */
-pn_listener_t *pn_connector_listener(pn_connector_t *connector);
+QPID_PROTON_PY	pn_listener_t *pn_connector_listener(pn_connector_t *connector);
 
 /** Access the Authentication and Security context of the connector.
  *
@@ -294,7 +296,7 @@ pn_listener_t *pn_connector_listener(pn_connector_t *connector);
  * @return the Authentication and Security context for the connector,
  *         or NULL if none
  */
-pn_sasl_t *pn_connector_sasl(pn_connector_t *connector);
+QPID_PROTON_API  pn_sasl_t *pn_connector_sasl(pn_connector_t *connector);
 
 /** Access the AMQP Connection associated with the connector.
  *
@@ -302,7 +304,7 @@ pn_sasl_t *pn_connector_sasl(pn_connector_t *connector);
  *                      returned
  * @return the connection context for the connector, or NULL if none
  */
-pn_connection_t *pn_connector_connection(pn_connector_t *connector);
+QPID_PROTON_API  pn_connection_t *pn_connector_connection(pn_connector_t *connector);
 
 /** Assign the AMQP Connection associated with the connector.
  *
@@ -310,7 +312,7 @@ pn_connection_t *pn_connector_connection(pn_connector_t *connector);
  * @param[in] connection the connection to associate with the
  *                       connector
  */
-void pn_connector_set_connection(pn_connector_t *connector, pn_connection_t *connection);
+QPID_PROTON_API  void pn_connector_set_connection(pn_connector_t *ctor, pn_connection_t *connection);
 
 /** Access the application context that is associated with the
  *  connector.
@@ -320,7 +322,7 @@ void pn_connector_set_connection(pn_connector_t *connector, pn_connection_t *con
  * @return the application context that was passed to pn_connector()
  *         or pn_connector_fd()
  */
-void *pn_connector_context(pn_connector_t *connector);
+QPID_PROTON_API  void *pn_connector_context(pn_connector_t *connector);
 
 /** Assign a new application context to the connector.
  *
@@ -328,26 +330,26 @@ void *pn_connector_context(pn_connector_t *connector);
  * @param[in] context new application context to associate with the
  *                    connector
  */
-void pn_connector_set_context(pn_connector_t *connector, void *context);
+QPID_PROTON_API  void pn_connector_set_context(pn_connector_t *connector, void *context);
 
 /** Access the transport used by this connector.
  *
  * @param[in] connector connector whose transport will be returned
  * @return the transport, or NULL if none
  */
-pn_transport_t *pn_connector_transport(pn_connector_t *connector);
+QPID_PROTON_PY	pn_transport_t *pn_connector_transport(pn_connector_t *connector);
 
 /** Close the socket used by the connector.
  *
  * @param[in] connector the connector whose socket will be closed
  */
-void pn_connector_close(pn_connector_t *connector);
+QPID_PROTON_API  void pn_connector_close(pn_connector_t *connector);
 
 /** Determine if the connector is closed.
  *
  * @return True if closed, otherwise false
  */
-bool pn_connector_closed(pn_connector_t *connector);
+QPID_PROTON_API  bool pn_connector_closed(pn_connector_t *connector);
 
 /** Destructor for the given connector.
  *
@@ -356,7 +358,7 @@ bool pn_connector_closed(pn_connector_t *connector);
  * @param[in] connector the connector object to free. No longer
  *                      valid on return
  */
-void pn_connector_free(pn_connector_t *connector);
+QPID_PROTON_API void pn_connector_free(pn_connector_t *connector);
 
 /** Activate a connector when a criteria is met
  *
@@ -366,8 +368,9 @@ void pn_connector_free(pn_connector_t *connector);
  * @param[in] connector The connector object to activate
  * @param[in] criteria  The criteria that must be met prior to activating the connector
  */
-void pn_connector_activate(pn_connector_t *connector, pn_activate_criteria_t criteria);
+QPID_PROTON_PY	void pn_connector_activate(pn_connector_t *connector, pn_activate_criteria_t criteria);
 
+QPID_PROTON_API int GetHostName(char *name, int namelen);
 
 #ifdef __cplusplus
 }
