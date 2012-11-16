@@ -1,0 +1,330 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|Win32">
+      <Configuration>Debug</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|Win32">
+      <Configuration>Release</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="MinSizeRel|Win32">
+      <Configuration>MinSizeRel</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="RelWithDebInfo|Win32">
+      <Configuration>RelWithDebInfo</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <ProjectGUID>{5C8EB035-4205-4821-8F4D-53E94802E9E5}</ProjectGUID>
+    <Keyword>Win32Proj</Keyword>
+    <Platform>Win32</Platform>
+    <ProjectName>proton-dump</ProjectName>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseOfMfc>false</UseOfMfc>
+    <CharacterSet>MultiByte</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseOfMfc>false</UseOfMfc>
+    <CharacterSet>MultiByte</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|Win32'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseOfMfc>false</UseOfMfc>
+    <CharacterSet>MultiByte</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|Win32'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseOfMfc>false</UseOfMfc>
+    <CharacterSet>MultiByte</CharacterSet>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionSettings">
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />  </ImportGroup>
+  <PropertyGroup Label="UserMacros" />
+    <PropertyGroup>
+      <_ProjectFileVersion>10.0.20506.1</_ProjectFileVersion>
+      <OutDir Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">C:\qpid\qpid\proton\proton-c\Debug\</OutDir>
+      <IntDir Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">proton-dump.dir\Debug\</IntDir>
+      <TargetName Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">proton-dump</TargetName>
+      <TargetExt Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">.exe</TargetExt>
+      <LinkIncremental Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</LinkIncremental>
+      <GenerateManifest Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</GenerateManifest>
+      <OutDir Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">C:\qpid\qpid\proton\proton-c\Release\</OutDir>
+      <IntDir Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">proton-dump.dir\Release\</IntDir>
+      <TargetName Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">proton-dump</TargetName>
+      <TargetExt Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">.exe</TargetExt>
+      <LinkIncremental Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">false</LinkIncremental>
+      <GenerateManifest Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">true</GenerateManifest>
+      <OutDir Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|Win32'">C:\qpid\qpid\proton\proton-c\MinSizeRel\</OutDir>
+      <IntDir Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|Win32'">proton-dump.dir\MinSizeRel\</IntDir>
+      <TargetName Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|Win32'">proton-dump</TargetName>
+      <TargetExt Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|Win32'">.exe</TargetExt>
+      <LinkIncremental Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|Win32'">false</LinkIncremental>
+      <GenerateManifest Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|Win32'">true</GenerateManifest>
+      <OutDir Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|Win32'">C:\qpid\qpid\proton\proton-c\RelWithDebInfo\</OutDir>
+      <IntDir Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|Win32'">proton-dump.dir\RelWithDebInfo\</IntDir>
+      <TargetName Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|Win32'">proton-dump</TargetName>
+      <TargetExt Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|Win32'">.exe</TargetExt>
+      <LinkIncremental Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|Win32'">true</LinkIncremental>
+      <GenerateManifest Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|Win32'">true</GenerateManifest>
+    </PropertyGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <ClCompile>
+      <AdditionalOptions> /Zm1000 -Werror -pedantic-errors -std=c99 -g -fPIC %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalIncludeDirectories>C:/qpid/qpid/proton/proton-c;C:/qpid/qpid/proton/proton-c/include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <BasicRuntimeChecks>EnableFastChecks</BasicRuntimeChecks>
+      <CompileAs>CompileAsC</CompileAs>
+      <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
+      <ExceptionHandling>
+      </ExceptionHandling>
+      <InlineFunctionExpansion>Disabled</InlineFunctionExpansion>
+      <Optimization>Disabled</Optimization>
+      <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
+      <WarningLevel>EnableAllWarnings</WarningLevel>
+      <PreprocessorDefinitions>WIN32;_WINDOWS;_DEBUG;CMAKE_INTDIR="Debug";%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AssemblerListingLocation>Debug</AssemblerListingLocation>
+      <ObjectFileName>$(IntDir)</ObjectFileName>
+      <ProgramDataBaseFileName>C:/qpid/qpid/proton/proton-c/Debug/proton-dump.pdb</ProgramDataBaseFileName>
+    </ClCompile>
+    <ResourceCompile>
+      <PreprocessorDefinitions>WIN32;_WINDOWS;_DEBUG;CMAKE_INTDIR=\"Debug\";%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>C:/qpid/qpid/proton/proton-c;C:/qpid/qpid/proton/proton-c/include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ResourceCompile>
+    <Midl>
+      <AdditionalIncludeDirectories>C:/qpid/qpid/proton/proton-c;C:/qpid/qpid/proton/proton-c/include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <OutputDirectory>$(IntDir)</OutputDirectory>
+      <HeaderFileName>%(Filename).h</HeaderFileName>
+      <TypeLibraryName>%(Filename).tlb</TypeLibraryName>
+      <InterfaceIdentifierFileName>%(Filename)_i.c</InterfaceIdentifierFileName>
+      <ProxyFileName>%(Filename)_p.c</ProxyFileName>
+    </Midl>
+    <Link>
+      <AdditionalOptions> /machine:X86 /debug %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalDependencies>kernel32.lib;user32.lib;gdi32.lib;winspool.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;comdlg32.lib;advapi32.lib;Debug\qpid-proton.lib;uuid.lib</AdditionalDependencies>
+      <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <ImportLibrary>C:/qpid/qpid/proton/proton-c/Debug/proton-dump.lib</ImportLibrary>
+      <LinkIncremental>true</LinkIncremental>
+      <ProgramDataBaseFile>C:/qpid/qpid/proton/proton-c/Debug/proton-dump.pdb</ProgramDataBaseFile>
+      <StackReserveSize>10000000</StackReserveSize>
+      <SubSystem>Console</SubSystem>
+      <Version></Version>
+    </Link>
+    <ProjectReference>
+      <LinkLibraryDependencies>false</LinkLibraryDependencies>
+    </ProjectReference>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <ClCompile>
+      <AdditionalOptions> /Zm1000 -Werror -pedantic-errors -std=c99 -g -fPIC %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalIncludeDirectories>C:/qpid/qpid/proton/proton-c;C:/qpid/qpid/proton/proton-c/include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <CompileAs>CompileAsC</CompileAs>
+      <ExceptionHandling>
+      </ExceptionHandling>
+      <InlineFunctionExpansion>AnySuitable</InlineFunctionExpansion>
+      <Optimization>MaxSpeed</Optimization>
+      <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
+      <WarningLevel>EnableAllWarnings</WarningLevel>
+      <DebugInformationFormat></DebugInformationFormat>
+      <PreprocessorDefinitions>WIN32;_WINDOWS;NDEBUG;CMAKE_INTDIR="Release";%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AssemblerListingLocation>Release</AssemblerListingLocation>
+      <ObjectFileName>$(IntDir)</ObjectFileName>
+      <ProgramDataBaseFileName>C:/qpid/qpid/proton/proton-c/Release/proton-dump.pdb</ProgramDataBaseFileName>
+    </ClCompile>
+    <ResourceCompile>
+      <PreprocessorDefinitions>WIN32;_WINDOWS;NDEBUG;CMAKE_INTDIR=\"Release\";%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>C:/qpid/qpid/proton/proton-c;C:/qpid/qpid/proton/proton-c/include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ResourceCompile>
+    <Midl>
+      <AdditionalIncludeDirectories>C:/qpid/qpid/proton/proton-c;C:/qpid/qpid/proton/proton-c/include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <OutputDirectory>$(IntDir)</OutputDirectory>
+      <HeaderFileName>%(Filename).h</HeaderFileName>
+      <TypeLibraryName>%(Filename).tlb</TypeLibraryName>
+      <InterfaceIdentifierFileName>%(Filename)_i.c</InterfaceIdentifierFileName>
+      <ProxyFileName>%(Filename)_p.c</ProxyFileName>
+    </Midl>
+    <Link>
+      <AdditionalOptions> /machine:X86 %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalDependencies>kernel32.lib;user32.lib;gdi32.lib;winspool.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;comdlg32.lib;advapi32.lib;Release\qpid-proton.lib;uuid.lib</AdditionalDependencies>
+      <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <GenerateDebugInformation>false</GenerateDebugInformation>
+      <ImportLibrary>C:/qpid/qpid/proton/proton-c/Release/proton-dump.lib</ImportLibrary>
+      <ProgramDataBaseFile>C:/qpid/qpid/proton/proton-c/Release/proton-dump.pdb</ProgramDataBaseFile>
+      <StackReserveSize>10000000</StackReserveSize>
+      <SubSystem>Console</SubSystem>
+      <Version></Version>
+    </Link>
+    <ProjectReference>
+      <LinkLibraryDependencies>false</LinkLibraryDependencies>
+    </ProjectReference>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|Win32'">
+    <ClCompile>
+      <AdditionalOptions> /Zm1000 -Werror -pedantic-errors -std=c99 -g -fPIC %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalIncludeDirectories>C:/qpid/qpid/proton/proton-c;C:/qpid/qpid/proton/proton-c/include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <CompileAs>CompileAsC</CompileAs>
+      <ExceptionHandling>
+      </ExceptionHandling>
+      <InlineFunctionExpansion>OnlyExplicitInline</InlineFunctionExpansion>
+      <Optimization>MinSpace</Optimization>
+      <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
+      <WarningLevel>EnableAllWarnings</WarningLevel>
+      <DebugInformationFormat></DebugInformationFormat>
+      <PreprocessorDefinitions>WIN32;_WINDOWS;NDEBUG;CMAKE_INTDIR="MinSizeRel";%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AssemblerListingLocation>MinSizeRel</AssemblerListingLocation>
+      <ObjectFileName>$(IntDir)</ObjectFileName>
+      <ProgramDataBaseFileName>C:/qpid/qpid/proton/proton-c/MinSizeRel/proton-dump.pdb</ProgramDataBaseFileName>
+    </ClCompile>
+    <ResourceCompile>
+      <PreprocessorDefinitions>WIN32;_WINDOWS;NDEBUG;CMAKE_INTDIR=\"MinSizeRel\";%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>C:/qpid/qpid/proton/proton-c;C:/qpid/qpid/proton/proton-c/include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ResourceCompile>
+    <Midl>
+      <AdditionalIncludeDirectories>C:/qpid/qpid/proton/proton-c;C:/qpid/qpid/proton/proton-c/include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <OutputDirectory>$(IntDir)</OutputDirectory>
+      <HeaderFileName>%(Filename).h</HeaderFileName>
+      <TypeLibraryName>%(Filename).tlb</TypeLibraryName>
+      <InterfaceIdentifierFileName>%(Filename)_i.c</InterfaceIdentifierFileName>
+      <ProxyFileName>%(Filename)_p.c</ProxyFileName>
+    </Midl>
+    <Link>
+      <AdditionalOptions> /machine:X86 %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalDependencies>kernel32.lib;user32.lib;gdi32.lib;winspool.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;comdlg32.lib;advapi32.lib;MinSizeRel\qpid-proton.lib;uuid.lib</AdditionalDependencies>
+      <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <GenerateDebugInformation>false</GenerateDebugInformation>
+      <ImportLibrary>C:/qpid/qpid/proton/proton-c/MinSizeRel/proton-dump.lib</ImportLibrary>
+      <ProgramDataBaseFile>C:/qpid/qpid/proton/proton-c/MinSizeRel/proton-dump.pdb</ProgramDataBaseFile>
+      <StackReserveSize>10000000</StackReserveSize>
+      <SubSystem>Console</SubSystem>
+      <Version></Version>
+    </Link>
+    <ProjectReference>
+      <LinkLibraryDependencies>false</LinkLibraryDependencies>
+    </ProjectReference>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|Win32'">
+    <ClCompile>
+      <AdditionalOptions> /Zm1000 -Werror -pedantic-errors -std=c99 -g -fPIC %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalIncludeDirectories>C:/qpid/qpid/proton/proton-c;C:/qpid/qpid/proton/proton-c/include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <CompileAs>CompileAsC</CompileAs>
+      <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
+      <ExceptionHandling>
+      </ExceptionHandling>
+      <InlineFunctionExpansion>OnlyExplicitInline</InlineFunctionExpansion>
+      <Optimization>MaxSpeed</Optimization>
+      <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
+      <WarningLevel>EnableAllWarnings</WarningLevel>
+      <PreprocessorDefinitions>WIN32;_WINDOWS;NDEBUG;CMAKE_INTDIR="RelWithDebInfo";%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AssemblerListingLocation>RelWithDebInfo</AssemblerListingLocation>
+      <ObjectFileName>$(IntDir)</ObjectFileName>
+      <ProgramDataBaseFileName>C:/qpid/qpid/proton/proton-c/RelWithDebInfo/proton-dump.pdb</ProgramDataBaseFileName>
+    </ClCompile>
+    <ResourceCompile>
+      <PreprocessorDefinitions>WIN32;_WINDOWS;NDEBUG;CMAKE_INTDIR=\"RelWithDebInfo\";%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>C:/qpid/qpid/proton/proton-c;C:/qpid/qpid/proton/proton-c/include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ResourceCompile>
+    <Midl>
+      <AdditionalIncludeDirectories>C:/qpid/qpid/proton/proton-c;C:/qpid/qpid/proton/proton-c/include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <OutputDirectory>$(IntDir)</OutputDirectory>
+      <HeaderFileName>%(Filename).h</HeaderFileName>
+      <TypeLibraryName>%(Filename).tlb</TypeLibraryName>
+      <InterfaceIdentifierFileName>%(Filename)_i.c</InterfaceIdentifierFileName>
+      <ProxyFileName>%(Filename)_p.c</ProxyFileName>
+    </Midl>
+    <Link>
+      <AdditionalOptions> /machine:X86 /debug %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalDependencies>kernel32.lib;user32.lib;gdi32.lib;winspool.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;comdlg32.lib;advapi32.lib;RelWithDebInfo\qpid-proton.lib;uuid.lib</AdditionalDependencies>
+      <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <ImportLibrary>C:/qpid/qpid/proton/proton-c/RelWithDebInfo/proton-dump.lib</ImportLibrary>
+      <LinkIncremental>true</LinkIncremental>
+      <ProgramDataBaseFile>C:/qpid/qpid/proton/proton-c/RelWithDebInfo/proton-dump.pdb</ProgramDataBaseFile>
+      <StackReserveSize>10000000</StackReserveSize>
+      <SubSystem>Console</SubSystem>
+      <Version></Version>
+    </Link>
+    <ProjectReference>
+      <LinkLibraryDependencies>false</LinkLibraryDependencies>
+    </ProjectReference>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <CustomBuild Include="CMakeLists.txt">
+      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Building Custom Rule C:/qpid/qpid/proton/proton-c/CMakeLists.txt</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">setlocal
+C:\cmake\cmake-2.8.9-win32-x86\bin\cmake.exe -HC:/qpid/qpid/proton/proton-c -BC:/qpid/qpid/proton/proton-c --check-stamp-file C:\qpid\qpid\proton\proton-c\CMakeFiles\generate.stamp
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">C:/qpid/qpid/proton/proton-c/CMakeLists.txt;C:\qpid\qpid\proton\proton-c\CMakeLists.txt;C:\qpid\qpid\proton\proton-c\CMakeFiles\CMakeSystem.cmake;C:\qpid\qpid\proton\proton-c\CMakeFiles\CMakeCCompiler.cmake;C:\cmake\cmake-2.8.9-win32-x86\share\cmake-2.8\Modules\CMakeSystemSpecificInformation.cmake;C:\cmake\cmake-2.8.9-win32-x86\share\cmake-2.8\Modules\CMakeGenericSystem.cmake;C:\cmake\cmake-2.8.9-win32-x86\share\cmake-2.8\Modules\Platform\Windows.cmake;C:\cmake\cmake-2.8.9-win32-x86\share\cmake-2.8\Modules\Platform\WindowsPaths.cmake;C:\cmake\cmake-2.8.9-win32-x86\share\cmake-2.8\Modules\CMakeCInformation.cmake;C:\cmake\cmake-2.8.9-win32-x86\share\cmake-2.8\Modules\Platform\Windows-cl.cmake;C:\qpid\qpid\proton\proton-c\CMakeFiles\CMakeCPlatform.cmake;C:\qpid\qpid\proton\proton-c\CMakeFiles\CMakeCXXPlatform.cmake;C:\cmake\cmake-2.8.9-win32-x86\share\cmake-2.8\Modules\Platform\cl.cmake;C:\qpid\qpid\proton\proton-c\CMakeFiles\CMakeRCCompiler.cmake;C:\cmake\cmake-2.8.9-win32-x86\share\cmake-2.8\Modules\CMakeRCInformation.cmake;C:\cmake\cmake-2.8.9-win32-x86\share\cmake-2.8\Modules\CMakeCommonLanguageInclude.cmake;C:\cmake\cmake-2.8.9-win32-x86\share\cmake-2.8\Modules\CheckIncludeFile.cmake;C:\qpid\qpid\proton\proton-c\pn_config.h.in;C:\cmake\cmake-2.8.9-win32-x86\share\cmake-2.8\Modules\FindSWIG.cmake;C:\cmake\cmake-2.8.9-win32-x86\share\cmake-2.8\Modules\FindPackageHandleStandardArgs.cmake;C:\cmake\cmake-2.8.9-win32-x86\share\cmake-2.8\Modules\FindPackageMessage.cmake;C:\cmake\cmake-2.8.9-win32-x86\share\cmake-2.8\Modules\CMakeParseArguments.cmake;C:\qpid\qpid\proton\proton-c\src\libqpid-proton.pc.in;C:\qpid\qpid\proton\proton-c\CMakeLists.txt;%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">C:\qpid\qpid\proton\proton-c\CMakeFiles\generate.stamp</Outputs>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Building Custom Rule C:/qpid/qpid/proton/proton-c/CMakeLists.txt</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">setlocal
+C:\cmake\cmake-2.8.9-win32-x86\bin\cmake.exe -HC:/qpid/qpid/proton/proton-c -BC:/qpid/qpid/proton/proton-c --check-stamp-file C:\qpid\qpid\proton\proton-c\CMakeFiles\generate.stamp
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">C:/qpid/qpid/proton/proton-c/CMakeLists.txt;C:\qpid\qpid\proton\proton-c\CMakeLists.txt;C:\qpid\qpid\proton\proton-c\CMakeFiles\CMakeSystem.cmake;C:\qpid\qpid\proton\proton-c\CMakeFiles\CMakeCCompiler.cmake;C:\cmake\cmake-2.8.9-win32-x86\share\cmake-2.8\Modules\CMakeSystemSpecificInformation.cmake;C:\cmake\cmake-2.8.9-win32-x86\share\cmake-2.8\Modules\CMakeGenericSystem.cmake;C:\cmake\cmake-2.8.9-win32-x86\share\cmake-2.8\Modules\Platform\Windows.cmake;C:\cmake\cmake-2.8.9-win32-x86\share\cmake-2.8\Modules\Platform\WindowsPaths.cmake;C:\cmake\cmake-2.8.9-win32-x86\share\cmake-2.8\Modules\CMakeCInformation.cmake;C:\cmake\cmake-2.8.9-win32-x86\share\cmake-2.8\Modules\Platform\Windows-cl.cmake;C:\qpid\qpid\proton\proton-c\CMakeFiles\CMakeCPlatform.cmake;C:\qpid\qpid\proton\proton-c\CMakeFiles\CMakeCXXPlatform.cmake;C:\cmake\cmake-2.8.9-win32-x86\share\cmake-2.8\Modules\Platform\cl.cmake;C:\qpid\qpid\proton\proton-c\CMakeFiles\CMakeRCCompiler.cmake;C:\cmake\cmake-2.8.9-win32-x86\share\cmake-2.8\Modules\CMakeRCInformation.cmake;C:\cmake\cmake-2.8.9-win32-x86\share\cmake-2.8\Modules\CMakeCommonLanguageInclude.cmake;C:\cmake\cmake-2.8.9-win32-x86\share\cmake-2.8\Modules\CheckIncludeFile.cmake;C:\qpid\qpid\proton\proton-c\pn_config.h.in;C:\cmake\cmake-2.8.9-win32-x86\share\cmake-2.8\Modules\FindSWIG.cmake;C:\cmake\cmake-2.8.9-win32-x86\share\cmake-2.8\Modules\FindPackageHandleStandardArgs.cmake;C:\cmake\cmake-2.8.9-win32-x86\share\cmake-2.8\Modules\FindPackageMessage.cmake;C:\cmake\cmake-2.8.9-win32-x86\share\cmake-2.8\Modules\CMakeParseArguments.cmake;C:\qpid\qpid\proton\proton-c\src\libqpid-proton.pc.in;C:\qpid\qpid\proton\proton-c\CMakeLists.txt;%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">C:\qpid\qpid\proton\proton-c\CMakeFiles\generate.stamp</Outputs>
+      <Message Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|Win32'">Building Custom Rule C:/qpid/qpid/proton/proton-c/CMakeLists.txt</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|Win32'">setlocal
+C:\cmake\cmake-2.8.9-win32-x86\bin\cmake.exe -HC:/qpid/qpid/proton/proton-c -BC:/qpid/qpid/proton/proton-c --check-stamp-file C:\qpid\qpid\proton\proton-c\CMakeFiles\generate.stamp
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|Win32'">C:/qpid/qpid/proton/proton-c/CMakeLists.txt;C:\qpid\qpid\proton\proton-c\CMakeLists.txt;C:\qpid\qpid\proton\proton-c\CMakeFiles\CMakeSystem.cmake;C:\qpid\qpid\proton\proton-c\CMakeFiles\CMakeCCompiler.cmake;C:\cmake\cmake-2.8.9-win32-x86\share\cmake-2.8\Modules\CMakeSystemSpecificInformation.cmake;C:\cmake\cmake-2.8.9-win32-x86\share\cmake-2.8\Modules\CMakeGenericSystem.cmake;C:\cmake\cmake-2.8.9-win32-x86\share\cmake-2.8\Modules\Platform\Windows.cmake;C:\cmake\cmake-2.8.9-win32-x86\share\cmake-2.8\Modules\Platform\WindowsPaths.cmake;C:\cmake\cmake-2.8.9-win32-x86\share\cmake-2.8\Modules\CMakeCInformation.cmake;C:\cmake\cmake-2.8.9-win32-x86\share\cmake-2.8\Modules\Platform\Windows-cl.cmake;C:\qpid\qpid\proton\proton-c\CMakeFiles\CMakeCPlatform.cmake;C:\qpid\qpid\proton\proton-c\CMakeFiles\CMakeCXXPlatform.cmake;C:\cmake\cmake-2.8.9-win32-x86\share\cmake-2.8\Modules\Platform\cl.cmake;C:\qpid\qpid\proton\proton-c\CMakeFiles\CMakeRCCompiler.cmake;C:\cmake\cmake-2.8.9-win32-x86\share\cmake-2.8\Modules\CMakeRCInformation.cmake;C:\cmake\cmake-2.8.9-win32-x86\share\cmake-2.8\Modules\CMakeCommonLanguageInclude.cmake;C:\cmake\cmake-2.8.9-win32-x86\share\cmake-2.8\Modules\CheckIncludeFile.cmake;C:\qpid\qpid\proton\proton-c\pn_config.h.in;C:\cmake\cmake-2.8.9-win32-x86\share\cmake-2.8\Modules\FindSWIG.cmake;C:\cmake\cmake-2.8.9-win32-x86\share\cmake-2.8\Modules\FindPackageHandleStandardArgs.cmake;C:\cmake\cmake-2.8.9-win32-x86\share\cmake-2.8\Modules\FindPackageMessage.cmake;C:\cmake\cmake-2.8.9-win32-x86\share\cmake-2.8\Modules\CMakeParseArguments.cmake;C:\qpid\qpid\proton\proton-c\src\libqpid-proton.pc.in;C:\qpid\qpid\proton\proton-c\CMakeLists.txt;%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|Win32'">C:\qpid\qpid\proton\proton-c\CMakeFiles\generate.stamp</Outputs>
+      <Message Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|Win32'">Building Custom Rule C:/qpid/qpid/proton/proton-c/CMakeLists.txt</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|Win32'">setlocal
+C:\cmake\cmake-2.8.9-win32-x86\bin\cmake.exe -HC:/qpid/qpid/proton/proton-c -BC:/qpid/qpid/proton/proton-c --check-stamp-file C:\qpid\qpid\proton\proton-c\CMakeFiles\generate.stamp
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd</Command>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|Win32'">C:/qpid/qpid/proton/proton-c/CMakeLists.txt;C:\qpid\qpid\proton\proton-c\CMakeLists.txt;C:\qpid\qpid\proton\proton-c\CMakeFiles\CMakeSystem.cmake;C:\qpid\qpid\proton\proton-c\CMakeFiles\CMakeCCompiler.cmake;C:\cmake\cmake-2.8.9-win32-x86\share\cmake-2.8\Modules\CMakeSystemSpecificInformation.cmake;C:\cmake\cmake-2.8.9-win32-x86\share\cmake-2.8\Modules\CMakeGenericSystem.cmake;C:\cmake\cmake-2.8.9-win32-x86\share\cmake-2.8\Modules\Platform\Windows.cmake;C:\cmake\cmake-2.8.9-win32-x86\share\cmake-2.8\Modules\Platform\WindowsPaths.cmake;C:\cmake\cmake-2.8.9-win32-x86\share\cmake-2.8\Modules\CMakeCInformation.cmake;C:\cmake\cmake-2.8.9-win32-x86\share\cmake-2.8\Modules\Platform\Windows-cl.cmake;C:\qpid\qpid\proton\proton-c\CMakeFiles\CMakeCPlatform.cmake;C:\qpid\qpid\proton\proton-c\CMakeFiles\CMakeCXXPlatform.cmake;C:\cmake\cmake-2.8.9-win32-x86\share\cmake-2.8\Modules\Platform\cl.cmake;C:\qpid\qpid\proton\proton-c\CMakeFiles\CMakeRCCompiler.cmake;C:\cmake\cmake-2.8.9-win32-x86\share\cmake-2.8\Modules\CMakeRCInformation.cmake;C:\cmake\cmake-2.8.9-win32-x86\share\cmake-2.8\Modules\CMakeCommonLanguageInclude.cmake;C:\cmake\cmake-2.8.9-win32-x86\share\cmake-2.8\Modules\CheckIncludeFile.cmake;C:\qpid\qpid\proton\proton-c\pn_config.h.in;C:\cmake\cmake-2.8.9-win32-x86\share\cmake-2.8\Modules\FindSWIG.cmake;C:\cmake\cmake-2.8.9-win32-x86\share\cmake-2.8\Modules\FindPackageHandleStandardArgs.cmake;C:\cmake\cmake-2.8.9-win32-x86\share\cmake-2.8\Modules\FindPackageMessage.cmake;C:\cmake\cmake-2.8.9-win32-x86\share\cmake-2.8\Modules\CMakeParseArguments.cmake;C:\qpid\qpid\proton\proton-c\src\libqpid-proton.pc.in;C:\qpid\qpid\proton\proton-c\CMakeLists.txt;%(AdditionalInputs)</AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|Win32'">C:\qpid\qpid\proton\proton-c\CMakeFiles\generate.stamp</Outputs>
+    </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="src\proton-dump.c"  />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="C:/qpid/qpid/proton/proton-c/ZERO_CHECK.vcxproj">
+      <Project>F4019914-5BEE-4084-A98E-02A4D19377A8</Project>
+    </ProjectReference>
+    <ProjectReference Include="C:/qpid/qpid/proton/proton-c/qpid-proton.vcxproj">
+      <Project>2EA537DE-9FBB-4A93-BB45-BF83DCE562FB</Project>
+    </ProjectReference>
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets">
+  </ImportGroup>
+</Project>
