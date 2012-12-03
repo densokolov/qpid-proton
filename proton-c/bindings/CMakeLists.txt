@@ -28,7 +28,7 @@ if (PYTHONLIBS_FOUND)
 endif (PYTHONLIBS_FOUND)
 
 # Build wrapper for Ruby:
-find_package(Ruby)
+find_package(Ruby_NOT)
 if (RUBY_FOUND)
   add_subdirectory(ruby)
 endif (RUBY_FOUND)
@@ -36,7 +36,7 @@ endif (RUBY_FOUND)
 # Build wrapper for PHP
 # For now, assume PHP support if the 'php-config' tool is present.
 # @todo: allow user to specify which php-config if multiple PHP sources installed!
-find_program(PHP_CONFIG_EXE php-config)
+find_program(PHP_CONFIG_EXE php-config_NOT)
 if (PHP_CONFIG_EXE)
   find_program(PHP_EXE php)
   if (PHP_EXE)

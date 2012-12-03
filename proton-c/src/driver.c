@@ -40,6 +40,18 @@
 #include "ssl/ssl-internal.h"
 
 /* Decls */
+// MSG_NOSIGNAL does not exists on OS X, we will set the SO_NOSIGPIPE socket option instead.
+#if defined(__APPLE__) || defined(__MACH__)
+# ifndef MSG_NOSIGNAL
+#   define MSG_NOSIGNAL 0
+# endif
+#endif
+
+#ifdef __MACH__
+#include <mach/clock.h>
+#include <mach/mach.h>
+#endif
+
 
 #define PN_SEL_RD (0x0001)
 #define PN_SEL_WR (0x0002)
@@ -154,6 +166,15 @@ pn_listener_t *pn_listener(pn_driver_t *driver, const char *host,
     pn_error_from_errno(driver->error, "setsockopt");
     return NULL;
   }
+
+  // Enable SO_NOSIGPIPE on OS X
+  #if defined(__APPLE__) || defined(__MACH__)
+    optval = 1;
+    if (setsockopt(sock, SOL_SOCKET, SO_NOSIGPIPE, &optval, sizeof(optval)) == -1) {
+      pn_error_from_errno(driver->error, "setsockopt");
+      return NULL;
+    }
+  #endif
 
   if (bind(sock, addr->ai_addr, addr->ai_addrlen) == -1) {
     pn_error_from_errno(driver->error, "bind");
@@ -324,6 +345,15 @@ pn_connector_t *pn_connector(pn_driver_t *driver, const char *host,
     pn_error_from_errno(driver->error, "socket");
     return NULL;
   }
+
+  // Enable SO_NOSIGPIPE on OS X
+  #if defined(__APPLE__) || defined(__MACH__)
+    int optval = 1;
+    if (setsockopt(sock, SOL_SOCKET, SO_NOSIGPIPE, &optval, sizeof(optval)) == -1) {
+      pn_error_from_errno(driver->error, "setsockopt");
+      return NULL;
+    }
+  #endif
 
   if (connect(sock, addr->ai_addr, addr->ai_addrlen) == -1) {
     pn_error_from_errno(driver->error, "connect");
@@ -829,6 +859,19 @@ pn_connector_t *pn_driver_connector(pn_driver_t *d) {
 pn_timestamp_t pn_driver_now(pn_driver_t *driver)
 {
   struct timespec now;
-  if (clock_gettime(CLOCK_REALTIME, &now)) pn_fatal("clock_gettime() failed\n");
+  /*if (clock_gettime(CLOCK_REALTIME, &now)) pn_fatal("clock_gettime() failed\n");*/
+
+#ifdef __MACH__ // OS X does not have clock_gettime, use clock_get_time
+  clock_serv_t cclock;
+  mach_timespec_t mts;
+  host_get_clock_service(mach_host_self(), CALENDAR_CLOCK, &cclock);
+  clock_get_time(cclock, &mts);
+  mach_port_deallocate(mach_task_self(), cclock);
+  now.tv_sec = mts.tv_sec;
+  now.tv_nsec = mts.tv_nsec;
+#else
+  clock_gettime(CLOCK_REALTIME, &now);
+#endif
+
   return ((pn_timestamp_t)now.tv_sec) * 1000 + (now.tv_nsec / 1000000);
 }
