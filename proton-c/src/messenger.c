@@ -259,7 +259,8 @@ static char *build_name(const char *name)           // changes for uuid for wind
 	generated = generated +1;
 	generated[36] = '\0';
 	WideCharToMultiByte(CP_ACP, 0, generated, 37, buf, 37, NULL, NULL);
-	free(generated);	
+    // XXX: generated - 1 given that we incremented earlier
+	free(generated - 1);	
 	return buf;
 #else
     char *generated = malloc(37*sizeof(char));
