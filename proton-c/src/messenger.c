@@ -261,7 +261,8 @@ static char *build_name(const char *name)           // changes for uuid for wind
 	WideCharToMultiByte(CP_ACP, 0, generated, 37, buf, 37, NULL, NULL);
     // XXX: generated - 1 given that we incremented earlier
 	free(generated - 1);	
-	return buf;
+    // XXX: duplicate string memory, don't return any stack local memory.
+	return strdup(buf);
 #else
     char *generated = malloc(37*sizeof(char));
     uuid_generate(uuid);
