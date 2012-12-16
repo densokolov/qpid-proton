@@ -36,7 +36,8 @@
 
 /* ttlj: src_util.h was copied from the src folder;
    instead of the protonWinSnap branch including stuff from the src/ folder;
-   QPID_PROTON.h was also copied from proton-c/ folder */
+   QPID_PROTON.h was also copied from proton-c/ folder
+*/
 #include "src_util.h"
 #include "QPID_PROTON.h"
 
