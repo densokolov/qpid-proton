@@ -162,8 +162,8 @@ bool pn_env_bool(const char *name)
 {
   char *v = getenv(name);
 #ifdef _WINDOWS							// mdh -- added windows version
-  return v && (!_tcsnicmp(v, "true", strlen(v)) || !_tcsnicmp(v, "1", strlen(v)) ||
-               !_tcsnicmp(v, "yes", strlen(v)));
+  return v && (!_strnicmp(v, "true", strlen(v)) || !_strnicmp(v, "1", strlen(v)) ||
+               !_strnicmp(v, "yes", strlen(v)));
 #else							
   return v && (!strcasecmp(v, "true") || !strcasecmp(v, "1") ||
                !strcasecmp(v, "yes"));
