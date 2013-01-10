@@ -1354,8 +1354,18 @@ int pn_data_vfill(pn_data_t *data, const char *fmt, va_list ap)
       break;
     case 'z':
       {
+#ifdef _WINDOWS
+        /* Windows x64 ABI passes structs as argument by pointer
+         * to the struct, not independent members, consequently,
+         * let va_arg take care of the ABI and don't assume we
+         * know.. */
+        pn_bytes_t bin = va_arg(ap, pn_bytes_t);
+        size_t size = bin.size;
+        char *start = bin.start;
+#else
         size_t size = va_arg(ap, size_t);
         char *start = va_arg(ap, char *);
+#endif
         if (start) {
           err = pn_data_put_binary(data, pn_bytes(size, start));
         } else {

@@ -231,8 +231,17 @@ void pn_sasl_free(pn_sasl_t *sasl)
 void pn_client_init(pn_sasl_t *sasl)
 {
   pn_bytes_t bytes = pn_buffer_bytes(sasl->send_data);
+#ifdef _WINDOWS
+  /* See comment at pn_data_vfill's handling of 'z'; AMD64 ABI
+   * problems, either consistently pass a 'z' as a pn_bytes
+   * structure (which we'll be doing shortly) or pass size
+   * and start separately. */
+  pn_post_frame(sasl->disp, 0, "DL[sz]", SASL_INIT, sasl->mechanisms,
+                bytes);
+#else
   pn_post_frame(sasl->disp, 0, "DL[sz]", SASL_INIT, sasl->mechanisms,
                 bytes.size, bytes.start);
+#endif
   pn_buffer_clear(sasl->send_data);
 }
 
