@@ -326,7 +326,11 @@ int pn_ssl_set_trusted_ca_db(pn_ssl_t *ssl,
 
   const char *file;
   const char *dir;
+#ifdef _WINDOWS
+  if (sbuf.st_mode & _S_IFDIR) {
+#else
   if (S_ISDIR(sbuf.st_mode)) {
+#endif
     dir = certificate_db;
     file = NULL;
   } else {
@@ -552,7 +556,7 @@ pn_ssl_t *pn_ssl(pn_transport_t *transport)
     OpenSSL_add_all_algorithms();
   }
 
-  pn_ssl_t *ssl = calloc(1, sizeof(pn_ssl_t));
+  pn_ssl_t *ssl = (pn_ssl_t *)calloc(1, sizeof(pn_ssl_t));
   if (!ssl) return NULL;
 
   ssl->transport = transport;
