@@ -1,5 +1,6 @@
  
-#include <time.h> 
+#include <time.h>
+#include <WinSock2.h>
 #include <windows.h>  
 #include "timewin.h"
 

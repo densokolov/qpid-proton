@@ -1,7 +1,7 @@
  
 #include <time.h> 
-#include <windows.h>
 #include <WinSock2.h>
+#include <windows.h>
  
 const __int64 DELTA_EPOCH_IN_MICROSECS= 11644473600000000; 
  
