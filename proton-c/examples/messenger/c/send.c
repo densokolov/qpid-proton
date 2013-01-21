@@ -27,6 +27,8 @@
 #include <string.h>
 #include <ctype.h>
 
+#include "timestamp.h"
+
 #define check(messenger)                                         \
   {                                                              \
     if(pn_messenger_errno(messenger))                            \
@@ -93,12 +95,13 @@ int main(int argc, char** argv)
 
   pn_message_t * message;
   pn_messenger_t * messenger;
+  char timebuf[100];
 
   message = pn_message();
   messenger = pn_messenger(NULL);
 
   pn_messenger_start(messenger);
-
+  pn_messenger_set_timeout(messenger, 100);
   while ( *msgtext ) {
     pn_message_set_address(message, address);
     pn_message_set_subject(message, subject);
@@ -106,9 +109,10 @@ int main(int argc, char** argv)
     pn_data_put_string(body, pn_bytes(strlen(*msgtext), *msgtext));
     pn_messenger_put(messenger, message);
     check(messenger);
-    printf("\nSending %d %s\n", getpid(), *msgtext);
+    printf("\n%s Sending %d %s\n", tv_now(timebuf), getpid(), *msgtext);
     pn_messenger_send(messenger);
     check(messenger);
+    pn_messenger_recv(messenger, 1024);
     if ( *++msgtext )
       sleep(1);
   }

@@ -26,6 +26,8 @@
 #include <stdlib.h>
 #include <ctype.h>
 
+#include "timestamp.h"
+
 #define check(messenger)                                         \
   {                                                              \
     if(pn_messenger_errno(messenger))                            \
@@ -123,12 +125,14 @@ int main(int argc, char** argv)
   check(messenger);
 
   pn_messenger_subscribe(messenger, address);
+  pn_messenger_set_timeout(messenger, 100);
   check(messenger);
 
   for(;;)
   {
-    pn_messenger_recv(messenger, 1024);
+    pn_messenger_recv(messenger, 1);
     check(messenger);
+    printf("."); fflush(stdout);
 
     while(pn_messenger_incoming(messenger))
     {
@@ -137,13 +141,15 @@ int main(int argc, char** argv)
 
       size_t buffsize = 1024;
       char buffer[buffsize];
+      char timebuf[100];
       pn_data_t *body = pn_message_body(message);
       pn_data_format(body, buffer, &buffsize);
-
-      printf("Address: %s\n", pn_message_get_address(message));
+      printf("\n%s\n", tv_now(timebuf));
+      printf("    Address: %s\n", pn_message_get_address(message));
       const char* subject = pn_message_get_subject(message);
-      printf("Subject: %s\n", subject ? subject : "(no subject)");
-      printf("Content: %s\n", buffer);
+      printf("    Subject: %s\n", subject ? subject : "(no subject)");
+      printf("    Content: %s\n", buffer);
+      pn_messenger_send(messenger);
     }
   }
 
