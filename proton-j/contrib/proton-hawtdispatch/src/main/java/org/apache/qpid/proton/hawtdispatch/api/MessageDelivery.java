@@ -17,18 +17,14 @@
 
 package org.apache.qpid.proton.hawtdispatch.api;
 
-import org.apache.qpid.proton.hawtdispatch.impl.DroppingWritableBuffer;
+import org.apache.qpid.proton.amqp.transport.DeliveryState;
+import org.apache.qpid.proton.engine.impl.DeliveryImpl;
 import org.apache.qpid.proton.hawtdispatch.impl.Watch;
 import org.apache.qpid.proton.hawtdispatch.impl.WatchBase;
-import org.apache.qpid.proton.codec.CompositeWritableBuffer;
-import org.apache.qpid.proton.codec.WritableBuffer;
-import org.apache.qpid.proton.engine.impl.DeliveryImpl;
 import org.apache.qpid.proton.message.Message;
-import org.apache.qpid.proton.type.transport.DeliveryState;
+import org.apache.qpid.proton.message.impl.MessageImpl;
 import org.fusesource.hawtbuf.Buffer;
 import org.fusesource.hawtdispatch.Task;
-
-import java.nio.ByteBuffer;
 
 /**
  * @author <a href="http://hiramchirino.com">Hiram Chirino</a>
@@ -42,18 +38,17 @@ public abstract class MessageDelivery extends WatchBase {
     private int sizeHint = 1024*4;
 
     static Buffer encode(Message message, int sizeHint) {
-        ByteBuffer buffer = ByteBuffer.wrap(new byte[sizeHint]);
-        DroppingWritableBuffer overflow = new DroppingWritableBuffer();
-        int c = message.encode(new CompositeWritableBuffer(new WritableBuffer.ByteBufferWrapper(buffer), overflow));
-        if( overflow.position() > 0 ) {
-            buffer = ByteBuffer.wrap(new byte[sizeHint+overflow.position()]);
-            c = message.encode(new WritableBuffer.ByteBufferWrapper(buffer));
+        byte[] buffer = new byte[sizeHint];
+        int size = ((MessageImpl)message).encode2(buffer, 0, sizeHint);
+        if( size > sizeHint ) {
+            buffer = new byte[size];
+            size = message.encode(buffer, 0, size);
         }
-        return new Buffer(buffer.array(), 0, c);
+        return new Buffer(buffer, 0, size);
     }
 
     static Message decode(Buffer buffer) {
-        Message msg = new Message();
+        Message msg = new MessageImpl();
         int offset = buffer.offset;
         int len = buffer.length;
         while( len > 0 ) {

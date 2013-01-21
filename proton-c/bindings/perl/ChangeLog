@@ -1,4 +1,7 @@
-version 0.2: (TBA)
+version 0.3: (TBA)
+	* No language-specific features developed in this release.
+
+version 0.2: (30 November 2012)
 	* First implementation of the stable APIs on top of swig.
 	* Provides the qpid::proton::Message class.
 	* Provides the qpid::proton::Messenger class.

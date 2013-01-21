@@ -17,20 +17,40 @@
 #
 
 from uuid import UUID
-from org.apache.qpid.proton.engine import EndpointState, TransportException, Sasl, Ssl
+
+from org.apache.qpid.proton.engine import EndpointState, TransportException, Sasl, SslDomain
 from org.apache.qpid.proton.engine.impl import ConnectionImpl, SessionImpl, \
     SenderImpl, ReceiverImpl, TransportImpl
-from org.apache.qpid.proton.message import Message as MessageImpl, \
-    MessageFormat
-from org.apache.qpid.proton.type.messaging import Source, Target, Accepted
-from org.apache.qpid.proton.type import UnsignedInteger
+from org.apache.qpid.proton.engine.impl.ssl import SslDomainImpl, SslPeerDetailsImpl
+from org.apache.qpid.proton.message import MessageFormat
+from org.apache.qpid.proton.message.impl import MessageImpl
+from org.apache.qpid.proton.messenger import MessengerException, Status
+from org.apache.qpid.proton.messenger.impl import MessengerImpl
+from org.apache.qpid.proton.amqp.messaging import Source, Target, Accepted, AmqpValue
+from org.apache.qpid.proton.amqp import UnsignedInteger
 from jarray import zeros
 from java.util import EnumSet, UUID as JUUID
+
+LANGUAGE = "Java"
 
 class Skipped(Exception):
   skipped = True
 
 PN_SESSION_WINDOW = TransportImpl.SESSION_WINDOW
+
+PENDING = "PENDING"
+ACCEPTED = "ACCEPTED"
+REJECTED = "REJECTED"
+
+STATUSES = {
+  Status.ACCEPTED: ACCEPTED,
+  Status.REJECTED: REJECTED,
+  Status.PENDING: PENDING,
+  Status.UNKNOWN: None
+  }
+
+MANUAL = "MANUAL"
+AUTOMATIC = "AUTOMATIC"
 
 class Endpoint(object):
 
@@ -40,6 +60,13 @@ class Endpoint(object):
   REMOTE_UNINIT = 8
   REMOTE_ACTIVE = 16
   REMOTE_CLOSED = 32
+
+  def __init__(self):
+    self.condition = None
+
+  @property
+  def remote_condition(self):
+    raise Skipped()
 
   @property
   def state(self):
@@ -89,6 +116,24 @@ class Endpoint(object):
 
   def close(self):
     self.impl.close()
+
+class Condition:
+
+  def __init__(self, name, description=None, info=None):
+    self.name = name
+    self.description = description
+    self.info = info
+
+  def __repr__(self):
+    return "Condition(%s)" % ", ".join([repr(x) for x in
+                                        (self.name, self.description, self.info)
+                                        if x])
+
+  def __eq__(self, o):
+    if not isinstance(o, Condition): return False
+    return self.name == o.name and \
+        self.description == o.description and \
+        self.info == o.info
 
 def wrap_connection(impl):
   if impl: return Connection(_impl = impl)
@@ -203,7 +248,7 @@ class Link(Endpoint):
     return wrap_session(self.impl.getSession())
 
   def delivery(self, tag):
-    return wrap_delivery(self.impl.delivery(tag, 0, len(tag)))
+    return wrap_delivery(self.impl.delivery(tag))
 
   @property
   def current(self):
@@ -443,6 +488,11 @@ The idle timeout of the connection (in milliseconds).
     #return pn_transport_get_frames_input(self._trans)
     raise Skipped()
 
+class symbol(unicode):
+
+  def __repr__(self):
+    return "symbol(%s)" % unicode.__repr__(self)
+
 class Data(object):
 
   SYMBOL = None
@@ -450,10 +500,95 @@ class Data(object):
   def __init__(self, *args, **kwargs):
     raise Skipped()
 
+class Timeout(Exception):
+  pass
+
 class Messenger(object):
 
   def __init__(self, *args, **kwargs):
+    #comment out or remove line below to enable messenger tests
     raise Skipped()
+    self.impl = MessengerImpl()
+
+  def start(self):
+    self.impl.start()
+
+  def stop(self):
+    self.impl.stop()
+
+  def subscribe(self, source):
+    self.impl.subscribe(source)
+
+  def put(self, message):
+    self.impl.put(message.impl)
+    return self.impl.outgoingTracker()
+
+  def send(self):
+    self.impl.send()
+
+  def recv(self, n):
+    self.impl.recv(n)
+
+  def get(self, message=None):
+    if message is None:
+      self.impl.get()
+    else:
+      message.impl = self.impl.get()
+    return self.impl.incomingTracker()
+
+  @property
+  def outgoing(self):
+    return self.impl.outgoing()
+
+  @property
+  def incoming(self):
+    return self.impl.incoming()
+
+  def _get_timeout(self):
+    return self.impl.getTimeout()
+  def _set_timeout(self, t):
+    self.impl.setTimeout(t)
+  timeout = property(_get_timeout, _set_timeout)
+
+  def accept(self, tracker=None):
+    if tracker is None:
+      tracker = self.impl.incomingTracker()
+      flags = self.impl.CUMULATIVE
+    else:
+      flags = 0
+    self.impl.accept(tracker, flags)
+
+  def reject(self, tracker=None):
+    if tracker is None:
+      tracker = self.impl.incomingTracker()
+      flags = self.impl.CUMULATIVE
+    else:
+      flags = 0
+    self.impl.reject(tracker, flags)
+
+  def settle(self, tracker=None):
+    if tracker is None:
+      tracker = self.impl.outgoingTracker()
+      flags = self.impl.CUMULATIVE
+    else:
+      flags = 0
+    self.impl.settle(tracker, flags)
+
+  def status(self, tracker):
+    return STATUSES[self.impl.getStatus(tracker)]
+
+  def _get_incoming_window(self):
+    return self.impl.getIncomingWindow()
+  def _set_incoming_window(self, window):
+    self.impl.setIncomingWindow(window)
+  incoming_window = property(_get_incoming_window, _set_incoming_window)
+
+  def _get_outgoing_window(self):
+    return self.impl.getOutgoingWindow()
+  def _set_outgoing_window(self, window):
+    self.impl.setOutgoingWindow(window)
+  outgoing_window = property(_get_outgoing_window, _set_outgoing_window)
+
 
 class Message(object):
 
@@ -621,6 +756,17 @@ class Message(object):
     self.impl.setMessageFormat(format)
   format = property(_get_format, _set_format)
 
+  def _get_body(self):
+    body = self.impl.getBody()
+    if isinstance(body, AmqpValue):
+      return body.getValue()
+    else:
+      return body
+  def _set_body(self, body):
+    self.impl.setBody(AmqpValue(body))
+  body = property(_get_body, _set_body)
+
+
 class SASL(object):
 
   OK = Sasl.PN_SASL_OK
@@ -675,29 +821,50 @@ class SSLException(Exception):
 class SSLUnavailable(SSLException):
   pass
 
-class SSL(object):
+class SSLDomain(object):
 
-  MODE_SERVER = Ssl.Mode.SERVER
-  MODE_CLIENT = Ssl.Mode.CLIENT
-  VERIFY_PEER = Ssl.VerifyMode.VERIFY_PEER
-  ANONYMOUS_PEER = Ssl.VerifyMode.ANONYMOUS_PEER
+  MODE_SERVER = SslDomain.Mode.SERVER
+  MODE_CLIENT = SslDomain.Mode.CLIENT
+  VERIFY_PEER = SslDomain.VerifyMode.VERIFY_PEER
+  ANONYMOUS_PEER = SslDomain.VerifyMode.ANONYMOUS_PEER
+  VERIFY_PEER_NAME = None  # TBD
 
-  def __init__(self,transport):
-    self._ssl = transport.impl.ssl()
+  def __init__(self, mode):
+    self._domain = SslDomainImpl()
+    self._domain.init(mode)
 
-  def init(self, mode):
-    self._ssl.init(mode)
-
-  def set_credentials(self, cert_file,key_file,password):
-    self._ssl.setCredentials(cert_file,key_file,password)
+  def set_credentials(self, cert_file, key_file, password):
+    self._domain.setCredentials(cert_file, key_file, password)
 
   def set_trusted_ca_db(self, certificate_db):
-    self._ssl.setTrustedCaDb(certificate_db)
+    self._domain.setTrustedCaDb(certificate_db)
 
   def set_peer_authentication(self, verify_mode, trusted_CAs=None):
-    self._ssl.setPeerAuthentication(verify_mode)
+    self._domain.setPeerAuthentication(verify_mode)
     if trusted_CAs is not None:
-      self._ssl.setTrustedCaDb(trusted_CAs)
+      self._domain.setTrustedCaDb(trusted_CAs)
+
+  def allow_unsecured_client(self, allow_unsecured = True):
+    self._domain.allowUnsecuredClient(allow_unsecured)
+
+class SSLSessionDetails(object):
+
+  def __init__(self, session_id):
+    self._session_details = SslPeerDetailsImpl(session_id, 1)
+
+class SSL(object):
+
+  def __init__(self, transport, domain, session_details=None):
+
+    internal_session_details = None
+    if session_details:
+      internal_session_details = session_details._session_details
+
+    self._ssl = transport.impl.ssl(domain._domain, internal_session_details)
+    self._session_details = session_details
+
+  def get_session_details(self):
+    return self._session_details
 
   def cipher_name(self):
     return self._ssl.getCipherName()
@@ -705,11 +872,41 @@ class SSL(object):
   def protocol_name(self):
     return self._ssl.getProtocolName()
 
-  def allow_unsecured_client(self):
-     self._ssl.allowUnsecuredClient(True)
+  def _set_peer_hostname(self, hostname):
+    raise Skipped()
+  def _get_peer_hostname(self):
+    raise Skipped()
+  peer_hostname = property(_get_peer_hostname, _set_peer_hostname)
 
-__all__ = ["Messenger", "Message", "ProtonException", "MessengerException",
-           "MessageException", "Timeout", "Data", "Endpoint", "Connection",
-           "Session", "Link", "Terminus", "Sender", "Receiver", "Delivery",
-           "Transport", "TransportException", "SASL", "SSL", "SSLException",
-           "SSLUnavailable", "PN_SESSION_WINDOW"]
+__all__ = [
+           "ACCEPTED",
+           "LANGUAGE",
+           "MANUAL",
+           "PENDING",
+           "REJECTED",
+           "PN_SESSION_WINDOW",
+           "Condition",
+           "Connection",
+           "Data",
+           "Delivery",
+           "Endpoint",
+           "Link",
+           "Message",
+           "MessageException",
+           "Messenger",
+           "MessengerException",
+           "ProtonException",
+           "Receiver",
+           "SASL",
+           "Sender",
+           "Session",
+           "SSL",
+           "SSLDomain",
+           "SSLException",
+           "SSLSessionDetails",
+           "SSLUnavailable",
+           "symbol",
+           "Terminus",
+           "Timeout",
+           "Transport",
+           "TransportException"]

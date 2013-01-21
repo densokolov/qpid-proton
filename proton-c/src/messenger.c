@@ -29,8 +29,8 @@
 #include <string.h>
 #include <stdio.h>
 #include <sys/time.h>
-#include <uuid/uuid.h>
 #include "util.h"
+#include "platform.h"
 
 typedef struct {
   size_t capacity;
@@ -66,6 +66,16 @@ struct pn_subscription_t {
   char *scheme;
   void *context;
 };
+
+typedef struct {
+  int refcount;
+  char *address;
+  char *scheme;
+  char *user;
+  char *pass;
+  char *host;
+  char *port;
+} pn_connection_ctx_t;
 
 void pn_queue_init(pn_queue_t *queue)
 {
@@ -110,18 +120,24 @@ void pn_queue_gc(pn_queue_t *queue)
   queue->lwm += delta;
 }
 
-void pn_incref(pn_connection_t *conn)
+static void pn_incref(pn_connection_t *conn)
 {
-  intptr_t refcount = (intptr_t) pn_connection_get_context(conn);
-  pn_connection_set_context(conn, (void *) (refcount + 1));
+  pn_connection_ctx_t *ctx = pn_connection_get_context(conn);
+  ctx->refcount++;
 }
 
-void pn_decref(pn_connection_t *conn)
+static void pn_decref(pn_connection_t *conn)
 {
-  intptr_t refcount = (intptr_t) pn_connection_get_context(conn);
-  pn_connection_set_context(conn, (void *) (refcount - 1));
-  if (refcount == 1) {
+  pn_connection_ctx_t *ctx = pn_connection_get_context(conn);
+  ctx->refcount--;
+  if (ctx->refcount == 0) {
     pn_connection_free(conn);
+    free(ctx->scheme);
+    free(ctx->user);
+    free(ctx->pass);
+    free(ctx->host);
+    free(ctx->port);
+    free(ctx);
   }
 }
 
@@ -139,6 +155,25 @@ void pn_queue_del(pn_queue_t *queue, pn_delivery_t *delivery)
   }
 }
 
+void pn_queue_slide(pn_queue_t *queue)
+{
+  if (queue->window >= 0) {
+    while (queue->hwm - queue->lwm > queue->window) {
+      pn_delivery_t *d = pn_queue_get(queue, queue->lwm);
+      if (d) {
+        if (!pn_delivery_local_state(d)) {
+          pn_delivery_update(d, PN_ACCEPTED);
+        }
+        pn_delivery_settle(d);
+        pn_queue_del(queue, d);
+      } else {
+        pn_queue_gc(queue);
+      }
+    }
+  }
+  pn_queue_gc(queue);
+}
+
 pn_sequence_t pn_queue_add(pn_queue_t *queue, pn_delivery_t *delivery)
 {
   pn_sequence_t id = queue->hwm++;
@@ -150,27 +185,8 @@ pn_sequence_t pn_queue_add(pn_queue_t *queue, pn_delivery_t *delivery)
   pn_connection_t *conn =
     pn_session_connection(pn_link_session(pn_delivery_link(delivery)));
   pn_incref(conn);
+  pn_queue_slide(queue);
   return id;
-}
-
-void pn_queue_slide(pn_queue_t *queue)
-{
-  if (queue->window >= 0) {
-    while (queue->hwm - queue->lwm > queue->window) {
-      pn_delivery_t *d = pn_queue_get(queue, queue->lwm);
-      if (d) {
-        if (pn_delivery_local_state(d)) {
-          pn_delivery_settle(d);
-          pn_queue_del(queue, d);
-        } else {
-          break;
-        }
-      } else {
-        pn_queue_gc(queue);
-      }
-    }
-  }
-  pn_queue_gc(queue);
 }
 
 int pn_queue_update(pn_queue_t *queue, pn_sequence_t id, pn_status_t status,
@@ -213,7 +229,7 @@ int pn_queue_update(pn_queue_t *queue, pn_sequence_t id, pn_status_t status,
     }
   }
 
-  pn_queue_slide(queue);
+  pn_queue_gc(queue);
 
   return 0;
 }
@@ -230,11 +246,7 @@ static char *build_name(const char *name)
   if (name) {
     return pn_strdup(name);
   } else {
-    char *generated = malloc(37*sizeof(char));
-    uuid_t uuid;
-    uuid_generate(uuid);
-    uuid_unparse_lower(uuid, generated);
-    return generated;
+    return pn_i_genuuid();
   }
 }
 
@@ -395,9 +407,64 @@ void pn_messenger_flow(pn_messenger_t *messenger)
   }
 }
 
+static void pn_transport_config(pn_messenger_t *messenger,
+                                pn_connector_t *connector,
+                                pn_connection_t *connection)
+{
+  pn_connection_ctx_t *ctx = pn_connection_get_context(connection);
+  pn_transport_t *transport = pn_connector_transport(connector);
+  if (ctx->scheme && !strcmp(ctx->scheme, "amqps")) {
+    pn_ssl_domain_t *d = pn_ssl_domain( PN_SSL_MODE_CLIENT );
+    if (messenger->certificate && messenger->private_key) {
+      pn_ssl_domain_set_credentials( d, messenger->certificate,
+                                     messenger->private_key,
+                                     messenger->password);
+    }
+    if (messenger->trusted_certificates) {
+      pn_ssl_domain_set_trusted_ca_db(d, messenger->trusted_certificates);
+      pn_ssl_domain_set_peer_authentication(d, PN_SSL_VERIFY_PEER, NULL);
+    } else {
+      pn_ssl_domain_set_peer_authentication(d, PN_SSL_ANONYMOUS_PEER, NULL);
+    }
+    pn_ssl_t *ssl = pn_ssl(transport);
+    pn_ssl_init(ssl, d, NULL);
+    pn_ssl_domain_free( d );
+  }
+
+  pn_sasl_t *sasl = pn_sasl(transport);
+  if (ctx->user) {
+    pn_sasl_plain(sasl, ctx->user, ctx->pass);
+  } else {
+    pn_sasl_mechanisms(sasl, "ANONYMOUS");
+    pn_sasl_client(sasl);
+  }
+}
+
+static void pn_error_report(const char *pfx, const char *error)
+{
+  fprintf(stderr, "%s ERROR %s\n", pfx, error);
+}
+
+static void pn_condition_report(const char *pfx, pn_condition_t *condition)
+{
+  if (pn_condition_is_redirect(condition)) {
+    fprintf(stderr, "%s NOTICE (%s) redirecting to %s:%i\n",
+            pfx,
+            pn_condition_get_name(condition),
+            pn_condition_redirect_host(condition),
+            pn_condition_redirect_port(condition));
+  } else if (pn_condition_is_set(condition)) {
+    char error[1024];
+    snprintf(error, 1024, "(%s) %s",
+             pn_condition_get_name(condition),
+             pn_condition_get_description(condition));
+    pn_error_report(pfx, error);
+  }
+}
+
 void pn_messenger_endpoints(pn_messenger_t *messenger, pn_connection_t *conn, pn_connector_t *ctor)
 {
-  if (pn_connection_state(conn) | PN_LOCAL_UNINIT) {
+  if (pn_connection_state(conn) & PN_LOCAL_UNINIT) {
     pn_connection_open(conn);
   }
 
@@ -410,8 +477,6 @@ void pn_messenger_endpoints(pn_messenger_t *messenger, pn_connection_t *conn, pn
     pn_delivery_clear(d);
     d = pn_work_next(d);
   }
-
-  pn_queue_slide(&messenger->outgoing);
 
   if (pn_work_head(conn)) {
     return;
@@ -439,18 +504,38 @@ void pn_messenger_endpoints(pn_messenger_t *messenger, pn_connection_t *conn, pn
 
   ssn = pn_session_head(conn, PN_LOCAL_ACTIVE | PN_REMOTE_CLOSED);
   while (ssn) {
+    pn_condition_report("SESSION", pn_session_remote_condition(ssn));
     pn_session_close(ssn);
     ssn = pn_session_next(ssn, PN_LOCAL_ACTIVE | PN_REMOTE_CLOSED);
   }
 
   link = pn_link_head(conn, PN_LOCAL_ACTIVE | PN_REMOTE_CLOSED);
   while (link) {
+    pn_condition_report("LINK", pn_link_remote_condition(link));
     pn_link_close(link);
     link = pn_link_next(link, PN_LOCAL_ACTIVE | PN_REMOTE_CLOSED);
   }
 
   if (pn_connection_state(conn) == (PN_LOCAL_ACTIVE | PN_REMOTE_CLOSED)) {
+    pn_condition_t *condition = pn_connection_remote_condition(conn);
+    pn_condition_report("CONNECTION", condition);
     pn_connection_close(conn);
+    if (pn_condition_is_redirect(condition)) {
+      const char *host = pn_condition_redirect_host(condition);
+      char buf[1024];
+      sprintf(buf, "%i", pn_condition_redirect_port(condition));
+
+      pn_connector_process(ctor);
+      pn_connector_set_connection(ctor, NULL);
+      pn_driver_t *driver = messenger->driver;
+      pn_connector_t *connector = pn_connector(driver, host, buf, NULL);
+      pn_transport_unbind(pn_connector_transport(ctor));
+      pn_connection_reset(conn);
+      pn_transport_config(messenger, connector, conn);
+      pn_connector_set_connection(connector, conn);
+    }
+  } else if (pn_connector_closed(ctor) && !(pn_connection_state(conn) & PN_REMOTE_CLOSED)) {
+    pn_error_report("CONNECTION", "connection aborted");
   }
 }
 
@@ -467,6 +552,31 @@ void pn_messenger_reclaim(pn_messenger_t *messenger, pn_connection_t *conn)
   }
 }
 
+
+pn_connection_t *pn_messenger_connection(pn_messenger_t *messenger,
+                                         char *scheme,
+                                         char *user,
+                                         char *pass,
+                                         char *host,
+                                         char *port)
+{
+  pn_connection_t *connection = pn_connection();
+  if (!connection) return NULL;
+  pn_connection_ctx_t *ctx = malloc(sizeof(pn_connection_ctx_t));
+  ctx->refcount = 0;
+  ctx->scheme = pn_strdup(scheme);
+  ctx->user = pn_strdup(user);
+  ctx->pass = pn_strdup(pass);
+  ctx->host = pn_strdup(host);
+  ctx->port = pn_strdup(port);
+  pn_connection_set_context(connection, ctx);
+  pn_incref(connection);
+
+  pn_connection_set_container(connection, messenger->name);
+  pn_connection_set_hostname(connection, ctx->host);
+  return connection;
+}
+
 int pn_messenger_tsync(pn_messenger_t *messenger, bool (*predicate)(pn_messenger_t *), int timeout)
 {
   pn_connector_t *ctor = pn_connector_head(messenger->driver);
@@ -475,7 +585,7 @@ int pn_messenger_tsync(pn_messenger_t *messenger, bool (*predicate)(pn_messenger
     ctor = pn_connector_next(ctor);
   }
 
-  pn_timestamp_t now = pn_driver_now(messenger->driver);
+  pn_timestamp_t now = pn_i_now();
   long int deadline = now + timeout;
   bool pred;
 
@@ -494,23 +604,26 @@ int pn_messenger_tsync(pn_messenger_t *messenger, bool (*predicate)(pn_messenger
       char *scheme = sub->scheme;
       pn_connector_t *c = pn_listener_accept(l);
       pn_transport_t *t = pn_connector_transport(c);
-      pn_ssl_t *ssl = pn_ssl(t);
-      pn_ssl_init(ssl, PN_SSL_MODE_SERVER);
+
+      pn_ssl_domain_t *d = pn_ssl_domain( PN_SSL_MODE_SERVER );
       if (messenger->certificate) {
-        pn_ssl_set_credentials(ssl, messenger->certificate,
-                               messenger->private_key,
-                               messenger->password);
+        pn_ssl_domain_set_credentials(d, messenger->certificate,
+                                      messenger->private_key,
+                                      messenger->password);
       }
       if (!(scheme && !strcmp(scheme, "amqps"))) {
-        pn_ssl_allow_unsecured_client(ssl);
+        pn_ssl_domain_allow_unsecured_client(d);
       }
+      pn_ssl_t *ssl = pn_ssl(t);
+      pn_ssl_init(ssl, d, NULL);
+      pn_ssl_domain_free( d );
+
       pn_sasl_t *sasl = pn_sasl(t);
       pn_sasl_mechanisms(sasl, "ANONYMOUS");
       pn_sasl_server(sasl);
       pn_sasl_done(sasl, PN_SASL_OK);
-      pn_connection_t *conn = pn_connection();
-      pn_incref(conn);
-      pn_connection_set_container(conn, messenger->name);
+      pn_connection_t *conn =
+        pn_messenger_connection(messenger, scheme, NULL, NULL, NULL, NULL);
       pn_connector_set_connection(c, conn);
     }
 
@@ -521,16 +634,18 @@ int pn_messenger_tsync(pn_messenger_t *messenger, bool (*predicate)(pn_messenger
       pn_messenger_endpoints(messenger, conn, c);
       if (pn_connector_closed(c)) {
         pn_connector_free(c);
-        pn_messenger_reclaim(messenger, conn);
-        pn_decref(conn);
-        pn_messenger_flow(messenger);
+        if (conn) {
+          pn_messenger_reclaim(messenger, conn);
+          pn_decref(conn);
+          pn_messenger_flow(messenger);
+        }
       } else {
         pn_connector_process(c);
       }
     }
 
     if (timeout >= 0) {
-      now = pn_driver_now(messenger->driver);
+      now = pn_i_now();
     }
   }
 
@@ -593,7 +708,6 @@ static const char *default_port(const char *scheme)
   else
     return "5672";
 }
-
 pn_connection_t *pn_messenger_resolve(pn_messenger_t *messenger, char *address, char **name)
 {
   char domain[strlen(address) + 1];
@@ -619,10 +733,16 @@ pn_connection_t *pn_messenger_resolve(pn_messenger_t *messenger, char *address, 
   pn_connector_t *ctor = pn_connector_head(messenger->driver);
   while (ctor) {
     pn_connection_t *connection = pn_connector_connection(ctor);
-    const char *container = pn_connection_remote_container(connection);
-    const char *hostname = pn_connection_get_hostname(connection);
-    if (pn_streq(container, domain) || pn_streq(hostname, domain))
+    pn_connection_ctx_t *ctx = pn_connection_get_context(connection);
+    if (pn_streq(scheme, ctx->scheme) && pn_streq(user, ctx->user) &&
+        pn_streq(pass, ctx->pass) && pn_streq(host, ctx->host) &&
+        pn_streq(port, ctx->port)) {
       return connection;
+    }
+    const char *container = pn_connection_remote_container(connection);
+    if (pn_streq(container, domain)) {
+      return connection;
+    }
     ctor = pn_connector_next(ctor);
   }
 
@@ -630,34 +750,9 @@ pn_connection_t *pn_messenger_resolve(pn_messenger_t *messenger, char *address, 
                                            port ? port : default_port(scheme),
                                            NULL);
   if (!connector) return NULL;
-  pn_transport_t *transport = pn_connector_transport(connector);
-  if (scheme && !strcmp(scheme, "amqps")) {
-    pn_ssl_t *ssl = pn_ssl(transport);
-    pn_ssl_init(ssl, PN_SSL_MODE_CLIENT);
-    if (messenger->certificate && messenger->private_key) {
-      pn_ssl_set_credentials(ssl, messenger->certificate,
-                             messenger->private_key,
-                             messenger->password);
-    }
-    if (messenger->trusted_certificates) {
-      pn_ssl_set_trusted_ca_db(ssl, messenger->trusted_certificates);
-      pn_ssl_set_peer_authentication(ssl, PN_SSL_VERIFY_PEER, NULL);
-    } else {
-      pn_ssl_set_peer_authentication(ssl, PN_SSL_ANONYMOUS_PEER, NULL);
-    }
-  }
-
-  pn_sasl_t *sasl = pn_sasl(transport);
-  if (user) {
-    pn_sasl_plain(sasl, user, pass);
-  } else {
-    pn_sasl_mechanisms(sasl, "ANONYMOUS");
-    pn_sasl_client(sasl);
-  }
-  pn_connection_t *connection = pn_connection();
-  pn_incref(connection);
-  pn_connection_set_container(connection, messenger->name);
-  pn_connection_set_hostname(connection, domain);
+  pn_connection_t *connection =
+    pn_messenger_connection(messenger, scheme, user, pass, host, port);
+  pn_transport_config(messenger, connector, connection);
   pn_connection_open(connection);
   pn_connector_set_connection(connector, connection);
 
@@ -900,7 +995,7 @@ pn_queue_t *pn_tracker_queue(pn_messenger_t *messenger, pn_tracker_t tracker)
 
 static pn_status_t disp2status(pn_disposition_t disp)
 {
-  if (!disp) return PN_STATUS_PENDING;
+  if (!disp) return PN_STATUS_UNKNOWN;
 
   switch (disp) {
   case PN_ACCEPTED:
@@ -1038,22 +1133,10 @@ int pn_messenger_get(pn_messenger_t *messenger, pn_message_t *msg)
             return pn_error_format(messenger->error, err, "error decoding message: %s",
                                    pn_message_error(msg));
           } else {
-            if (messenger->accept_mode == PN_ACCEPT_MODE_AUTO) {
-              return pn_messenger_accept(messenger,
-                                         pn_messenger_incoming_tracker(messenger),
-                                         0);
-            } else {
-              return 0;
-            }
-          }
-        } else {
-          if (messenger->accept_mode == PN_ACCEPT_MODE_AUTO) {
-            return pn_messenger_accept(messenger,
-                                       pn_messenger_incoming_tracker(messenger),
-                                       0);
-          } else {
             return 0;
           }
+        } else {
+          return 0;
         }
       }
       d = pn_work_next(d);
@@ -1136,4 +1219,3 @@ int pn_messenger_incoming(pn_messenger_t *messenger)
 {
   return pn_messenger_queued(messenger, false);
 }
-

@@ -22,7 +22,6 @@
 #include <assert.h>
 #include <poll.h>
 #include <stdio.h>
-#include <time.h>
 #include <ctype.h>
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -37,12 +36,42 @@
 #include <proton/ssl.h>
 #include <proton/util.h>
 #include "util.h"
+#include "platform.h"
 #include "ssl/ssl-internal.h"
 
 /* Decls */
 
 #define PN_SEL_RD (0x0001)
 #define PN_SEL_WR (0x0002)
+
+/* Abstract away turning off SIGPIPE */
+#ifdef MSG_NOSIGNAL
+static inline ssize_t pn_send(int sockfd, const void *buf, size_t len) {
+    return send(sockfd, buf, len, MSG_NOSIGNAL);
+}
+
+static inline int pn_create_socket() {
+    return socket(AF_INET, SOCK_STREAM, getprotobyname("tcp")->p_proto);
+}
+#elif defined(SO_NOSIGPIPE)
+static inline ssize_t pn_send(int sockfd, const void *buf, size_t len) {
+    return send(sockfd, buf, len, 0);
+}
+
+static inline int pn_create_socket() {
+    int sock = socket(AF_INET, SOCK_STREAM, getprotobyname("tcp")->p_proto);
+    if (sock == -1) return sock;
+
+    int optval = 1;
+    if (setsockopt(sock, SOL_SOCKET, SO_NOSIGPIPE, &optval, sizeof(optval)) == -1) {
+        close(sock);
+        return -1;
+    }
+    return sock;
+}
+#else
+#error "Don't know how to turn off SIGPIPE on this platform"
+#endif
 
 struct pn_driver_t {
   pn_error_t *error;
@@ -143,21 +172,23 @@ pn_listener_t *pn_listener(pn_driver_t *driver, const char *host,
     return NULL;
   }
 
-  int sock = socket(AF_INET, SOCK_STREAM, getprotobyname("tcp")->p_proto);
+  int sock = pn_create_socket();
   if (sock == -1) {
-    pn_error_from_errno(driver->error, "socket");
+    pn_error_from_errno(driver->error, "pn_create_socket");
     return NULL;
   }
 
   int optval = 1;
   if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &optval, sizeof(optval)) == -1) {
     pn_error_from_errno(driver->error, "setsockopt");
+    close(sock);
     return NULL;
   }
 
   if (bind(sock, addr->ai_addr, addr->ai_addrlen) == -1) {
     pn_error_from_errno(driver->error, "bind");
     freeaddrinfo(addr);
+    close(sock);
     return NULL;
   }
 
@@ -165,6 +196,7 @@ pn_listener_t *pn_listener(pn_driver_t *driver, const char *host,
 
   if (listen(sock, 50) == -1) {
     pn_error_from_errno(driver->error, "listen");
+    close(sock);
     return NULL;
   }
 
@@ -319,19 +351,23 @@ pn_connector_t *pn_connector(pn_driver_t *driver, const char *host,
     return NULL;
   }
 
-  int sock = socket(AF_INET, SOCK_STREAM, getprotobyname("tcp")->p_proto);
+  int sock = pn_create_socket();
   if (sock == -1) {
-    pn_error_from_errno(driver->error, "socket");
-    return NULL;
-  }
-
-  if (connect(sock, addr->ai_addr, addr->ai_addrlen) == -1) {
-    pn_error_from_errno(driver->error, "connect");
-    freeaddrinfo(addr);
+    pn_error_from_errno(driver->error, "pn_create_socket");
     return NULL;
   }
 
   pn_configure_sock(sock);
+
+  if (connect(sock, addr->ai_addr, addr->ai_addrlen) == -1) {
+    if (errno != EINPROGRESS) {
+      pn_error_from_errno(driver->error, "connect");
+      freeaddrinfo(addr);
+      close(sock);
+      return NULL;
+    }
+  }
+
   freeaddrinfo(addr);
 
   pn_connector_t *c = pn_connector_fd(driver, sock, context);
@@ -548,10 +584,32 @@ void pn_connector_activate(pn_connector_t *ctor, pn_activate_criteria_t crit)
 }
 
 
+bool pn_connector_activated(pn_connector_t *ctor, pn_activate_criteria_t crit)
+{
+    bool result = false;
+
+    switch (crit) {
+    case PN_CONNECTOR_WRITABLE :
+        result = ctor->pending_write;
+        ctor->pending_write = false;
+        ctor->status &= ~PN_SEL_WR;
+        break;
+
+    case PN_CONNECTOR_READABLE :
+        result = ctor->pending_read;
+        ctor->pending_read = false;
+        ctor->status &= ~PN_SEL_RD;
+        break;
+    }
+
+    return result;
+}
+
+
 static void pn_connector_write(pn_connector_t *ctor)
 {
   if (ctor->output_size > 0) {
-    ssize_t n = send(ctor->fd, ctor->output, ctor->output_size, MSG_NOSIGNAL);
+    ssize_t n = pn_send(ctor->fd, ctor->output, ctor->output_size);
     if (n < 0) {
       // XXX
         if (errno != EAGAIN) {
@@ -586,7 +644,7 @@ void pn_connector_process(pn_connector_t *c)
     }
     pn_connector_process_input(c);
 
-    c->wakeup = pn_connector_tick(c, pn_driver_now(c->driver));
+    c->wakeup = pn_connector_tick(c, pn_i_now());
 
     pn_connector_process_output(c);
     if (c->pending_write) {
@@ -730,15 +788,16 @@ void pn_driver_wait_1(pn_driver_t *d)
 int pn_driver_wait_2(pn_driver_t *d, int timeout)
 {
   if (d->wakeup) {
-    pn_timestamp_t now = pn_driver_now(d);
+    pn_timestamp_t now = pn_i_now();
     if (now >= d->wakeup)
       timeout = 0;
     else
       timeout = (timeout < 0) ? d->wakeup-now : pn_min(timeout, d->wakeup - now);
   }
-  if (poll(d->fds, d->nfds, d->closed_count > 0 ? 0 : timeout) == -1)
-    return pn_error_from_errno(d->error, "poll");
-  return 0;
+  int result = poll(d->fds, d->nfds, d->closed_count > 0 ? 0 : timeout);
+  if (result == -1)
+    pn_error_from_errno(d->error, "poll");
+  return result;
 }
 
 void pn_driver_wait_3(pn_driver_t *d)
@@ -755,7 +814,7 @@ void pn_driver_wait_3(pn_driver_t *d)
     l = l->listener_next;
   }
 
-  pn_timestamp_t now = pn_driver_now(d);
+  pn_timestamp_t now = pn_i_now();
   pn_connector_t *c = d->connector_head;
   while (c) {
     if (c->closed) {
@@ -767,6 +826,8 @@ void pn_driver_wait_3(pn_driver_t *d)
       c->pending_read = (idx && d->fds[idx].revents & POLLIN);
       c->pending_write = (idx && d->fds[idx].revents & POLLOUT);
       c->pending_tick = (c->wakeup &&  c->wakeup <= now);
+      if (idx && d->fds[idx].revents & POLLERR)
+          pn_connector_close(c);
     }
     c = c->connector_next;
   }
@@ -788,9 +849,9 @@ void pn_driver_wait_3(pn_driver_t *d)
 int pn_driver_wait(pn_driver_t *d, int timeout)
 {
     pn_driver_wait_1(d);
-    int error = pn_driver_wait_2(d, timeout);
-    if (error)
-        return error;
+    int result = pn_driver_wait_2(d, timeout);
+    if (result == -1)
+        return pn_error_code(d->error);
     pn_driver_wait_3(d);
     return 0;
 }
@@ -824,11 +885,4 @@ pn_connector_t *pn_driver_connector(pn_driver_t *d) {
   }
 
   return NULL;
-}
-
-pn_timestamp_t pn_driver_now(pn_driver_t *driver)
-{
-  struct timespec now;
-  if (clock_gettime(CLOCK_REALTIME, &now)) pn_fatal("clock_gettime() failed\n");
-  return ((pn_timestamp_t)now.tv_sec) * 1000 + (now.tv_nsec / 1000000);
 }

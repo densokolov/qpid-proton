@@ -8,9 +8,9 @@
 # to you under the Apache License, Version 2.0 (the
 # "License"); you may not use this file except in compliance
 # with the License.  You may obtain a copy of the License at
-# 
+#
 #   http://www.apache.org/licenses/LICENSE-2.0
-# 
+#
 # Unless required by applicable law or agreed to in writing,
 # software distributed under the License is distributed on an
 # "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -44,12 +44,13 @@ usage()
     echo "-u URL      The base URL for the repository (def. ${URL})"
     echo "-b BRANCH   The branch to check out (def. ${BRANCH})"
     echo "-r REVISION The revision to check out (def. HEAD)"
+    echo "-d          Show verbose debugging output"
     echo ""
     exit 0
 }
 
 
-while getopts "hu:b:v:" OPTION; do
+while getopts "hu:b:r:v:d" OPTION; do
     case $OPTION in
         h) usage;;
 
@@ -60,6 +61,8 @@ while getopts "hu:b:v:" OPTION; do
         b) BRANCH=$OPTARG;;
 
         r) REVISION=$OPTARG;;
+
+        d) set -v;;
 
         \?) usage;;
     esac
@@ -126,19 +129,24 @@ EOF
 )
 
 ##
-## Create the Perl Tarball
+## Create the Ruby GEM
 ##
-rootname="perl-qpid-proton-${VERSION}"
+rootname="qpid-proton-ruby-${VERSION}"
 WORKDIR=$(mktemp -d)
 mkdir -p "${WORKDIR}"
 (
     cd ${WORKDIR}
-    svn export ${URL}/${BRANCH}/proton-c/bindings/perl ${WORKDIR}/${rootname} >/dev/null
+    svn export -qr ${REVISION} ${URL}/${BRANCH}/proton-c/bindings/ruby ${rootname}
 
-    echo "Generating Archive: ${CURRDIR}/${rootname}.tar.gz"
-    perl Makefile.PL
-    make dist
+    cat <<EOF > ${rootname}/SVN_INFO
+Repo: ${URL}
+Branch: ${BRANCH}
+Revision: ${REVISION}
+EOF
 
-    mv qpid-perl-${VERSION}.tar.gz ${CURRDIR}
+    tar zcf  ${CURRDIR}/${rootname}.tar.gz ${rootname} \
+      --exclude=spec \
+      --exclude=CMakeLists.txt \
+      --exclude=.gitignore
 )
 

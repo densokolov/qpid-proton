@@ -20,6 +20,11 @@ package org.apache.qpid.proton.engine.impl;
 import java.nio.ByteBuffer;
 import java.util.HashMap;
 import java.util.Map;
+import org.apache.qpid.proton.amqp.Binary;
+import org.apache.qpid.proton.amqp.Symbol;
+import org.apache.qpid.proton.amqp.UnsignedInteger;
+import org.apache.qpid.proton.amqp.UnsignedShort;
+import org.apache.qpid.proton.codec.AMQPDefinedTypes;
 import org.apache.qpid.proton.codec.CompositeWritableBuffer;
 import org.apache.qpid.proton.codec.DecoderImpl;
 import org.apache.qpid.proton.codec.EncoderImpl;
@@ -27,35 +32,35 @@ import org.apache.qpid.proton.codec.WritableBuffer;
 import org.apache.qpid.proton.engine.Connection;
 import org.apache.qpid.proton.engine.EndpointError;
 import org.apache.qpid.proton.engine.EndpointState;
-import org.apache.qpid.proton.engine.FrameTransport;
 import org.apache.qpid.proton.engine.Sasl;
 import org.apache.qpid.proton.engine.Ssl;
+import org.apache.qpid.proton.engine.SslDomain;
+import org.apache.qpid.proton.engine.SslPeerDetails;
 import org.apache.qpid.proton.engine.Transport;
 import org.apache.qpid.proton.engine.TransportException;
-import org.apache.qpid.proton.engine.TransportInput;
-import org.apache.qpid.proton.engine.TransportOutput;
-import org.apache.qpid.proton.engine.TransportWrapper;
+import org.apache.qpid.proton.engine.impl.ssl.ProtonSslEngineProvider;
+import org.apache.qpid.proton.engine.impl.ssl.SslImpl;
 import org.apache.qpid.proton.framing.TransportFrame;
-import org.apache.qpid.proton.type.*;
-import org.apache.qpid.proton.type.transport.Attach;
-import org.apache.qpid.proton.type.transport.Begin;
-import org.apache.qpid.proton.type.transport.Close;
-import org.apache.qpid.proton.type.transport.Detach;
-import org.apache.qpid.proton.type.transport.Disposition;
-import org.apache.qpid.proton.type.transport.End;
-import org.apache.qpid.proton.type.transport.Flow;
-import org.apache.qpid.proton.type.transport.FrameBody;
-import org.apache.qpid.proton.type.transport.Open;
-import org.apache.qpid.proton.type.transport.Role;
-import org.apache.qpid.proton.type.transport.Transfer;
+import org.apache.qpid.proton.amqp.transport.Attach;
+import org.apache.qpid.proton.amqp.transport.Begin;
+import org.apache.qpid.proton.amqp.transport.Close;
+import org.apache.qpid.proton.amqp.transport.Detach;
+import org.apache.qpid.proton.amqp.transport.Disposition;
+import org.apache.qpid.proton.amqp.transport.End;
+import org.apache.qpid.proton.amqp.transport.ErrorCondition;
+import org.apache.qpid.proton.amqp.transport.Flow;
+import org.apache.qpid.proton.amqp.transport.FrameBody;
+import org.apache.qpid.proton.amqp.transport.Open;
+import org.apache.qpid.proton.amqp.transport.Role;
+import org.apache.qpid.proton.amqp.transport.Transfer;
 
 public class TransportImpl extends EndpointImpl implements Transport, FrameBody.FrameBodyHandler<Integer>,FrameTransport
 {
     public static final int SESSION_WINDOW = 1024;
 
     public static final byte[] HEADER = new byte[8];
-    public static final org.apache.qpid.proton.type.messaging.Accepted ACCEPTED =
-            new org.apache.qpid.proton.type.messaging.Accepted();
+    public static final org.apache.qpid.proton.amqp.messaging.Accepted ACCEPTED =
+            new org.apache.qpid.proton.amqp.messaging.Accepted();
 
     static
     {
@@ -101,7 +106,7 @@ public class TransportImpl extends EndpointImpl implements Transport, FrameBody.
 
 
     {
-        AMQPDefinedTypes.registerAllTypes(_decoder);
+        AMQPDefinedTypes.registerAllTypes(_decoder, _encoder);
         _overflowBuffer.flip();
     }
 
@@ -236,17 +241,30 @@ public class TransportImpl extends EndpointImpl implements Transport, FrameBody.
 
     }
 
+    /**
+     * {@inheritDoc}
+     *
+     * <p>Note that sslDomain must implement {@link ProtonSslEngineProvider}. This is not possible
+     * enforce at the API level because {@link ProtonSslEngineProvider} is not part of the
+     * public Proton API.</p>
+     */
     @Override
-    public Ssl ssl()
+    public Ssl ssl(SslDomain sslDomain, SslPeerDetails sslPeerDetails)
     {
         if (_ssl == null)
         {
-            _ssl = new SslImpl();
+            _ssl = new SslImpl(sslDomain, sslPeerDetails);
             TransportWrapper transportWrapper = _ssl.wrap(_inputProcessor, _outputProcessor);
             _inputProcessor = transportWrapper;
             _outputProcessor = transportWrapper;
         }
         return _ssl;
+    }
+
+    @Override
+    public Ssl ssl(SslDomain sslDomain)
+    {
+        return ssl(sslDomain, null);
     }
 
     private void clearTransportWorkList()
@@ -295,7 +313,7 @@ public class TransportImpl extends EndpointImpl implements Transport, FrameBody.
 
                             EndpointError localError = link.getLocalError();
                             if( localError !=null ) {
-                                org.apache.qpid.proton.type.transport.Error error = new org.apache.qpid.proton.type.transport.Error();
+                                ErrorCondition error = new ErrorCondition();
                                 error.setCondition(Symbol.getSymbol(localError.getName()));
                                 error.setDescription(localError.getDescription());
                                 detach.setError(error);
@@ -884,7 +902,7 @@ public class TransportImpl extends EndpointImpl implements Transport, FrameBody.
 
     private int writeFrame(WritableBuffer buffer,
                            int channel,
-                           DescribedType frameBody,
+                           FrameBody frameBody,
                            ByteBuffer payload,
                            Runnable onPayloadTooLarge)
     {
@@ -892,7 +910,7 @@ public class TransportImpl extends EndpointImpl implements Transport, FrameBody.
         buffer.position(oldPosition+8);
         _encoder.setByteBuffer(buffer);
 
-        _encoder.writeDescribedType(frameBody);
+        _encoder.writeObject(frameBody);
 
         if(payload != null && (payload.remaining() + buffer.position() - oldPosition) > _maxFrameSize)
         {
@@ -901,7 +919,7 @@ public class TransportImpl extends EndpointImpl implements Transport, FrameBody.
                 onPayloadTooLarge.run();
             }
             buffer.position(oldPosition+8);
-            _encoder.writeDescribedType(frameBody);
+            _encoder.writeObject(frameBody);
         }
 
         if( _protocolTracer!=null )

@@ -29,10 +29,10 @@ from proton import *
 
 OUTPUT_SIZE = 10*1024
 
-def pump(t1, t2):
+def pump(t1, t2, buffer_size=OUTPUT_SIZE):
   while True:
-    out1 = t1.output(OUTPUT_SIZE)
-    out2 = t2.output(OUTPUT_SIZE)
+    out1 = t1.output(buffer_size)
+    out2 = t2.output(buffer_size)
 
     if out1 or out2:
       if out1:
@@ -98,9 +98,9 @@ class Test(common.Test):
   def cleanup(self):
     pass
 
-  def pump(self):
+  def pump(self, buffer_size=OUTPUT_SIZE):
     for c1, t1, c2, t2 in self._wires:
-      pump(t1, t2)
+      pump(t1, t2, buffer_size)
 
 class ConnectionTest(Test):
 
@@ -182,6 +182,25 @@ class ConnectionTest(Test):
 
     assert self.c2.remote_offered_capabilities.format() == self.c1.offered_capabilities.format()
     assert self.c2.remote_desired_capabilities.format() == self.c1.desired_capabilities.format()
+
+  def test_condition(self):
+    self.c1.open()
+    self.c2.open()
+    self.pump()
+    assert self.c1.state == Endpoint.LOCAL_ACTIVE | Endpoint.REMOTE_ACTIVE
+    assert self.c2.state == Endpoint.LOCAL_ACTIVE | Endpoint.REMOTE_ACTIVE
+
+    cond = Condition("blah:bleh", "this is a description", {symbol("foo"): "bar"})
+    self.c1.condition = cond
+    self.c1.close()
+
+    self.pump()
+
+    assert self.c1.state == Endpoint.LOCAL_CLOSED | Endpoint.REMOTE_ACTIVE
+    assert self.c2.state == Endpoint.LOCAL_ACTIVE | Endpoint.REMOTE_CLOSED
+
+    rcond = self.c2.remote_condition
+    assert rcond == cond, (rcond, cond)
 
 class SessionTest(Test):
 
@@ -271,6 +290,28 @@ class SessionTest(Test):
     self.ssn.close()
     self.pump()
 
+  def test_condition(self):
+    self.ssn.open()
+    self.pump()
+    ssn = self.c2.session_head(Endpoint.REMOTE_ACTIVE | Endpoint.LOCAL_UNINIT)
+    assert ssn != None
+    ssn.open()
+    self.pump()
+
+    assert self.ssn.state == Endpoint.LOCAL_ACTIVE | Endpoint.REMOTE_ACTIVE
+    assert ssn.state == Endpoint.LOCAL_ACTIVE | Endpoint.REMOTE_ACTIVE
+
+    cond = Condition("blah:bleh", "this is a description", {symbol("foo"): "bar"})
+    self.ssn.condition = cond
+    self.ssn.close()
+
+    self.pump()
+
+    assert self.ssn.state == Endpoint.LOCAL_CLOSED | Endpoint.REMOTE_ACTIVE
+    assert ssn.state == Endpoint.LOCAL_ACTIVE | Endpoint.REMOTE_CLOSED
+
+    rcond = ssn.remote_condition
+    assert rcond == cond, (rcond, cond)
 
 class LinkTest(Test):
 
@@ -444,6 +485,26 @@ class LinkTest(Test):
                                             timeout=7,
                                             capabilities=[]))
 
+  def test_condition(self):
+    self.snd.open()
+    self.rcv.open()
+    self.pump()
+
+    assert self.snd.state == Endpoint.LOCAL_ACTIVE | Endpoint.REMOTE_ACTIVE
+    assert self.rcv.state == Endpoint.LOCAL_ACTIVE | Endpoint.REMOTE_ACTIVE
+
+    cond = Condition("blah:bleh", "this is a description", {symbol("foo"): "bar"})
+    self.snd.condition = cond
+    self.snd.close()
+
+    self.pump()
+
+    assert self.snd.state == Endpoint.LOCAL_CLOSED | Endpoint.REMOTE_ACTIVE
+    assert self.rcv.state == Endpoint.LOCAL_ACTIVE | Endpoint.REMOTE_CLOSED
+
+    rcond = self.rcv.remote_condition
+    assert rcond == cond, (rcond, cond)
+
 class TerminusConfig:
 
   def __init__(self, address=None, timeout=None, durability=None, filter=None,
@@ -574,6 +635,71 @@ class TransferTest(Test):
     self.pump()
 
     assert sd.local_state == rd.remote_state == Delivery.ACCEPTED
+
+  def test_delivery_id_ordering(self):
+    self.rcv.flow(1024)
+    self.pump(buffer_size=64*1024)
+
+    #fill up delivery buffer on sender
+    for m in range(1024):
+      sd = self.snd.delivery("tag%s" % m)
+      msg = "message %s" % m
+      n = self.snd.send(msg)
+      assert n == len(msg)
+      assert self.snd.advance()
+
+    self.pump(buffer_size=64*1024)
+
+    #receive a session-windows worth of messages and accept them
+    for m in range(1024):
+      rd = self.rcv.current
+      assert rd is not None, m
+      assert rd.tag == ("tag%s" % m), (rd.tag, m)
+      msg = self.rcv.recv(1024)
+      assert msg == ("message %s" % m), (msg, m)
+      rd.update(Delivery.ACCEPTED)
+      rd.settle()
+
+    self.pump(buffer_size=64*1024)
+
+    #add some new deliveries
+    for m in range(1024, 1450):
+      sd = self.snd.delivery("tag%s" % m)
+      msg = "message %s" % m
+      n = self.snd.send(msg)
+      assert n == len(msg)
+      assert self.snd.advance()
+
+    #handle all disposition changes to sent messages
+    d = self.c1.work_head
+    while d:
+      if d.updated:
+        d.update(Delivery.ACCEPTED)
+        d.settle()
+      d = d.work_next
+
+    #submit some more deliveries
+    for m in range(1450, 1500):
+      sd = self.snd.delivery("tag%s" % m)
+      msg = "message %s" % m
+      n = self.snd.send(msg)
+      assert n == len(msg)
+      assert self.snd.advance()
+
+    self.pump(buffer_size=64*1024)
+    self.rcv.flow(1024)
+    self.pump(buffer_size=64*1024)
+
+    #verify remaining messages can be received and accepted
+    for m in range(1024, 1500):
+      rd = self.rcv.current
+      assert rd is not None, m
+      assert rd.tag == ("tag%s" % m), (rd.tag, m)
+      msg = self.rcv.recv(1024)
+      assert msg == ("message %s" % m), (msg, m)
+      rd.update(Delivery.ACCEPTED)
+      rd.settle()
+
 
 class MaxFrameTransferTest(Test):
 

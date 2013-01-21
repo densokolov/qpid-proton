@@ -121,16 +121,6 @@ pn_listener_t *pn_driver_listener(pn_driver_t *driver);
  */
 pn_connector_t *pn_driver_connector(pn_driver_t *driver);
 
-/** Get the current time in pn_timestamp_t format.
- *
- * Returns current time in milliseconds since Unix Epoch,
- * as defined by AMQP 1.0
- *
- * @param[in] driver the driver
- * @return current time
- */
-pn_timestamp_t pn_driver_now(pn_driver_t *driver);
-
 /** Free the driver allocated via pn_driver, and all associated
  *  listeners and connectors.
  *
@@ -367,6 +357,22 @@ void pn_connector_free(pn_connector_t *connector);
  * @param[in] criteria  The criteria that must be met prior to activating the connector
  */
 void pn_connector_activate(pn_connector_t *connector, pn_activate_criteria_t criteria);
+
+/** Return the activation status of the connector for a criteria
+ *
+ * Return the activation status (i.e. readable, writable) for the connector.  This function
+ * has the side-effect of canceling the activation of the criteria.
+ *
+ * Please note that this function must not be used for normal AMQP connectors.  It is only
+ * used for connectors created so the driver can track non-AMQP file descriptors.  Such
+ * connectors are never passed into pn_connector_process.
+ *
+ * @param[in] connector The connector object to activate
+ * @param[in] criteria  The criteria to test.  "Is this the reason the connector appeared
+ *                      in the work list?"
+ * @return true iff the criteria is activated on the connector.
+ */
+bool pn_connector_activated(pn_connector_t *connector, pn_activate_criteria_t criteria);
 
 
 #ifdef __cplusplus

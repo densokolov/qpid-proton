@@ -20,14 +20,12 @@
 include_directories (${RUBY_INCLUDE_PATH})
 swig_add_module(cproton-ruby ruby ruby.i)
 swig_link_libraries(cproton-ruby ${BINDING_DEPS} ${RUBY_LIBRARY})
-set_target_properties(cproton-ruby PROPERTIES PREFIX "" OUTPUT_NAME "cproton")
-
-execute_process(COMMAND ${RUBY_EXECUTABLE} -r rbconfig -e "puts RbConfig::CONFIG['prefix']"
-                OUTPUT_VARIABLE RUBY_PREFIX
-                OUTPUT_STRIP_TRAILING_WHITESPACE)
-
-string(REPLACE "${RUBY_PREFIX}/" "" RUBY_PFX_ARCH_DIR ${RUBY_ARCH_DIR})
+set_target_properties(cproton-ruby
+    PROPERTIES
+    PREFIX ""
+    OUTPUT_NAME "cproton"
+    LINK_FLAGS "${CATCH_UNDEFINED}" )
 
 install(TARGETS cproton-ruby
-        DESTINATION ${RUBY_PFX_ARCH_DIR}
+        DESTINATION ${RUBY_ARCH_DIR}
         COMPONENT Ruby)

@@ -24,7 +24,7 @@ include(CheckSymbolExists)
 project (Proton C)
 
 set (PN_VERSION_MAJOR 0)
-set (PN_VERSION_MINOR 2)
+set (PN_VERSION_MINOR 3)
 set (PN_VERSION "${PN_VERSION_MAJOR}.${PN_VERSION_MINOR}")
 
 include(soversion.cmake)
@@ -55,9 +55,14 @@ set (MAN_INSTALL_DIR share/man CACHE PATH "Manpage directory")
 
 set (PROTON_SHARE ${SHARE_INSTALL_DIR}/proton-${PN_VERSION})
 
-if (${CMAKE_VERSION} VERSION_LESS "2.8.0")
+# Can't use ${CMAKE_VERSION) as it is not available in all versions of cmake 2.6
+if ("${CMAKE_MAJOR_VERSION}.${CMAKE_MINOR_VERSION}.${CMAKE_PATCH_VERSION}" VERSION_LESS "2.8.0")
+    # OPTIONAL does not exist in install before 2.8 so always make docs and install
     set (OPTIONAL_ARG "")
     add_custom_target(docs ALL)
+    # There are bugs in the OpenSSL detection that mean -lcrypto is missed from the link line
+    # so turn off unknown symbol warnings
+    set (NOENABLE_UNDEFINED_ERROR ON)
 else()
     set (OPTIONAL_ARG OPTIONAL)
     add_custom_target(docs)
@@ -100,40 +105,85 @@ else (SSL_IMPL STREQUAL openssl)
   set (pn_driver_ssl_impl src/ssl/ssl_stub.c)
 endif (SSL_IMPL STREQUAL openssl)
 
+# First check whether we get clock_gettime without any special library linked
+CHECK_SYMBOL_EXISTS(clock_gettime "time.h" CLOCK_GETTIME_IN_LIBC)
+if (CLOCK_GETTIME_IN_LIBC)
+  list(APPEND PLATFORM_DEFINITIONS "USE_CLOCK_GETTIME")
+else (CLOCK_GETTIME_IN_LIBC)
+  CHECK_LIBRARY_EXISTS (rt clock_gettime "" CLOCK_GETTIME_IN_RT)
+  if (CLOCK_GETTIME_IN_RT)
+    set (TIME_LIB rt)
+    list(APPEND PLATFORM_DEFINITIONS "USE_CLOCK_GETTIME")
+  else (CLOCK_GETTIME_IN_RT)
+    list(APPEND PLATFORM_DEFINITIONS "USE_GETTIMEOFDAY")
+  endif (CLOCK_GETTIME_IN_RT)
+endif (CLOCK_GETTIME_IN_LIBC)
+
+CHECK_SYMBOL_EXISTS(uuid_generate "uuid/uuid.h" UUID_GENERATE_IN_LIBC)
+if (UUID_GENERATE_IN_LIBC)
+  list(APPEND PLATFORM_DEFINITIONS "USE_UUID_GENERATE")
+else (UUID_GENERATE_IN_LIBC)
+  CHECK_LIBRARY_EXISTS (uuid uuid_generate "" UUID_GENERATE_IN_UUID)
+  if (UUID_GENERATE_IN_UUID)
+    set (UUID_LIB uuid)
+    list(APPEND PLATFORM_DEFINITIONS "USE_UUID_GENERATE")
+  else (UUID_GENERATE_IN_UUID)
+    CHECK_SYMBOL_EXISTS(uuid_create "uuid.h" UUID_CREATE_IN_LIBC)
+    if (UUID_CREATE_IN_LIBC)
+      list(APPEND PLATFORM_DEFINITIONS "USE_UUID_CREATE")
+    else (UUID_CREATE_IN_LIBC)
+      CHECK_SYMBOL_EXISTS(UuidToString "rpc.h" WIN_UUID)
+      if (WIN_UUID)
+        list(APPEND PLATFORM_DEFINITIONS "USE_WIN_UUID")
+      else (WIN_UUID)
+        message(FATAL_ERROR "No Uuid API found")
+      endif (WIN_UUID)
+    endif (UUID_CREATE_IN_LIBC)
+  endif (UUID_GENERATE_IN_UUID)
+endif (UUID_GENERATE_IN_LIBC)
+
+# Try to keep any platform specific overrides together here:
+
+# MacOS has a bunch of differences in build tools and process and so we have to turn some things
+# off if building there:
+if (APPLE)
+  set (NOBUILD_PHP ON)
+  set (NOENABLE_WARNING_ERROR ON)
+  set (NOENABLE_UNDEFINED_ERROR ON)
+endif (APPLE)
+
+# Add options here called <whatever> they will turn into "ENABLE_<whatever" and can be
+# overridden on a platform specific basis above by NOENABLE_<whatever>
+set (OPTIONS WARNING_ERROR UNDEFINED_ERROR)
+
+foreach (OPTION ${OPTIONS})
+  if (NOT "NOENABLE_${OPTION}")
+    set ("DEFAULT_${OPTION}" ON)
+  endif (NOT "NOENABLE_${OPTION}")
+endforeach (OPTION)
+
+# And add the option here too with help text
+option(ENABLE_WARNING_ERROR "Consider compiler warnings to be errors" ${DEFAULT_WARNING_ERROR})
+option(ENABLE_UNDEFINED_ERROR "Check for unresolved library symbols" ${DEFAULT_UNDEFINED_ERROR})
+
+# Set any additional compiler specific flags
+if (CMAKE_COMPILER_IS_GNUCC)
+  if (ENABLE_WARNING_ERROR)
+    set (WERROR "-Werror")
+  endif (ENABLE_WARNING_ERROR)
+  set (COMPILE_WARNING_FLAGS "${WERROR} -Wall -pedantic-errors")
+  set (COMPILE_LANGUAGE_FLAGS "-std=c99")
+  set (COMPILE_PLATFORM_FLAGS "-std=gnu99")
+  if (ENABLE_UNDEFINED_ERROR)
+    set (CATCH_UNDEFINED "-Wl,--no-undefined")
+    set (ALLOW_UNDEFINED "-Wl,--allow-shlib-undefined")
+  endif (ENABLE_UNDEFINED_ERROR)
+endif (CMAKE_COMPILER_IS_GNUCC)
+
 find_package(SWIG)
 if (SWIG_FOUND)
   add_subdirectory(bindings)
 endif (SWIG_FOUND)
-
-# When checking for clock_gettime etc. first check whether the symbol
-# is present in the library that it may be in, if it is not then check
-# whether the symbol works using just the regular C library
-CHECK_LIBRARY_EXISTS (rt clock_gettime "" CLOCK_GETTIME_IN_RT)
-if (CLOCK_GETTIME_IN_RT)
-  set (TIME_LIB rt)
-else (CLOCK_GETTIME_IN_RT)
-  CHECK_SYMBOL_EXISTS(clock_gettime "time.h" HAVE_CLOCK_GETTIME)
-  if (NOT HAVE_CLOCK_GETTIME)
-    message(FATAL_ERROR "clock_gettime() not found")
-  endif (NOT HAVE_CLOCK_GETTIME)
-endif (CLOCK_GETTIME_IN_RT)
-
-CHECK_LIBRARY_EXISTS (uuid uuid_generate "" UUID_GENERATE_IN_UUID)
-if (UUID_GENERATE_IN_UUID)
-  set (UUID_LIB uuid)
-else (UUID_GENERATE_IN_UUID)
-  CHECK_SYMBOL_EXISTS(uuid_generate "uuid/uuid.h" HAVE_UUID_GENERATE)
-  if (NOT HAVE_UUID_GENERATE)
-    message(FATAL_ERROR "uuid_generate() not found")
-  endif (NOT HAVE_UUID_GENERATE)
-endif (UUID_GENERATE_IN_UUID)
-
-# Set any additional platform specific C compiler flags
-if (CMAKE_COMPILER_IS_GNUCC)
-  set (COMPILE_WARNING_FLAGS "-Wall -Werror -pedantic-errors")
-  set (COMPILE_LANGUAGE_FLAGS "-std=c99")
-  set (COMPILE_PLATFORM_FLAGS "-std=gnu99")
-endif (CMAKE_COMPILER_IS_GNUCC)
 
 add_subdirectory(docs/api)
 add_subdirectory(docs/man)
@@ -141,6 +191,7 @@ add_subdirectory(examples/messenger/c)
 
 set (qpid-proton-platform
   src/driver.c
+  src/platform.c
   ${pn_driver_ssl_impl}
 )
 
@@ -177,6 +228,7 @@ set_source_files_properties (
     ${qpid-proton-platform}
     PROPERTIES
     COMPILE_FLAGS "${COMPILE_WARNING_FLAGS} ${COMPILE_PLATFORM_FLAGS}"
+    COMPILE_DEFINITIONS "${PLATFORM_DEFINITIONS}"
 )
 
 add_library (
@@ -193,6 +245,7 @@ set_target_properties (
   PROPERTIES
   VERSION   "${PN_LIB_SOMAJOR}.${PN_LIB_SOMINOR}"
   SOVERSION "${PN_LIB_SOMAJOR}"
+  LINK_FLAGS "${CATCH_UNDEFINED}"
 )
 
 add_executable (proton src/proton.c)
@@ -204,7 +257,7 @@ target_link_libraries (proton-dump qpid-proton)
 set_target_properties (
     proton proton-dump
     PROPERTIES
-    COMPILE_FLAGS "${COMPILE_WARNING_FLAGS} ${COMPILE_LANGUAGE_FLAGS}"
+    COMPILE_FLAGS "${COMPILE_WARNING_FLAGS} ${COMPILE_PLATFORM_FLAGS}"
 )
 
 # Install executables and libraries
@@ -221,6 +274,11 @@ install (FILES LICENSE README TODO
          DESTINATION ${PROTON_SHARE})
 
 # Pkg config file
+# Compatible variable names used in the pkg config files also for autoconf
+get_filename_component (PREFIX ${CMAKE_INSTALL_PREFIX} ABSOLUTE)
+get_filename_component (EXEC_PREFIX ${CMAKE_INSTALL_PREFIX} ABSOLUTE)
+get_filename_component (LIBDIR ${CMAKE_INSTALL_PREFIX}/${LIB_INSTALL_DIR} ABSOLUTE)
+get_filename_component (INCLUDEDIR ${CMAKE_INSTALL_PREFIX}/${INCLUDE_INSTALL_DIR} ABSOLUTE)
 
 configure_file(${PROJECT_SOURCE_DIR}/src/libqpid-proton.pc.in
          ${PROJECT_BINARY_DIR}/libqpid-proton.pc @ONLY)

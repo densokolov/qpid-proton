@@ -23,7 +23,6 @@
 
 # Uses the php-config command line tool from PHP to extract the location of the PHP header
 # files
-
 execute_process(COMMAND ${PHP_CONFIG_EXE} --includes
                 OUTPUT_VARIABLE PHP_INCLUDES
                 RESULT_VARIABLE retval
@@ -32,22 +31,26 @@ execute_process(COMMAND ${PHP_CONFIG_EXE} --includes
 
 set_source_files_properties(${CMAKE_CURRENT_SOURCE_DIR}/php.i PROPERTIES SWIG_FLAGS "-I${PROJECT_SOURCE_DIR}/include")
 swig_add_module(cproton php ${CMAKE_CURRENT_SOURCE_DIR}/php.i)
-set_target_properties(cproton PROPERTIES PREFIX "")
 set_source_files_properties(${swig_generated_file_fullname} PROPERTIES COMPILE_FLAGS "${PHP_INCLUDES}")
 swig_link_libraries(cproton ${BINDING_DEPS})
+# PHP modules must be linked with unresolved symbols as they are presumably satisfied only when loaded by php itself
+set_target_properties(cproton
+    PROPERTIES
+    PREFIX ""
+    LINK_FLAGS "${ALLOW_UNDEFINED}")
 
 execute_process(COMMAND ${PHP_CONFIG_EXE} --extension-dir
                 OUTPUT_VARIABLE PHP_EXT_DIR_DEFAULT
                 OUTPUT_STRIP_TRAILING_WHITESPACE)
 execute_process(COMMAND ${PHP_CONFIG_EXE} --prefix
-                OUTPUT_VARIABLE PHP_PFX
+                OUTPUT_VARIABLE QPHP_PREFIX
                 OUTPUT_STRIP_TRAILING_WHITESPACE)
 execute_process(COMMAND ${PHP_CONFIG_EXE} --config-options
                 OUTPUT_VARIABLE PHP_OPTS
                 OUTPUT_STRIP_TRAILING_WHITESPACE)
 
 set(GET_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/get_include_dir.php)
-execute_process(COMMAND ${PHP_EXE} -n ${GET_INCLUDE_DIR} ${PHP_PFX}
+execute_process(COMMAND ${PHP_EXE} -n ${GET_INCLUDE_DIR} ${QPHP_PREFIX}
                 OUTPUT_VARIABLE PHP_INCLUDE_DIR_DEFAULT
                 OUTPUT_STRIP_TRAILING_WHITESPACE)
 
@@ -61,12 +64,6 @@ set (PHP_INI_DIR_DEFAULT ${CMAKE_MATCH_1})
 if ("${PHP_INI_DIR_DEFAULT}" STREQUAL "")
   set(PHP_INI_DIR_DEFAULT "/etc/php.d")
 endif()
-
-if (IS_ABSOLUTE "${PHP_INI_DIR_DEFAULT}" AND (NOT (IS_ABSOLUTE ${CMAKE_INSTALL_PREFIX})))
-  string(SUBSTRING ${PHP_INI_DIR_DEFAULT} 1 -1 PHP_INI_DIR_DEFAULT)
-  string(SUBSTRING ${PHP_EXT_DIR_DEFAULT} 1 -1 PHP_EXT_DIR_DEFAULT)
-  string(SUBSTRING ${PHP_INCLUDE_DIR_DEFAULT} 1 -1 PHP_INCLUDE_DIR_DEFAULT)
-endif ()
 
 set(PHP_EXT_DIR ${PHP_EXT_DIR_DEFAULT} CACHE PATH "PHP extensions directory.")
 set(PHP_INI_DIR ${PHP_INI_DIR_DEFAULT} CACHE PATH "Directory scanned for PHP ini files.")
