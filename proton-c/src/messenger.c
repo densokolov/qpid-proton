@@ -262,6 +262,7 @@ pn_messenger_t *pn_messenger(const char *name)
     m->trusted_certificates = NULL;
     m->timeout = -1;
     m->driver = pn_driver();
+    pn_driver_trace(m->driver, ~0);
     m->credit = 0;
     m->distributed = 0;
     m->next_tag = 0;
