@@ -54,13 +54,20 @@ int main(int argc, char** argv)
   int c;
   opterr = 0;
   char * address = "amqp://0.0.0.0";
-  char * msgtext = "Hello World!";
+  static char *msgdefault[] = {"Hello World!", "Hello World, part 2!",
+                               "Oh no! More Hello World!", 0};
+  char **msgtext = msgdefault;
 
-  while((c = getopt(argc, argv, "ha:b:c:")) != -1)
+  char subjdefault[100];
+  char *subject = subjdefault;
+  snprintf(subjdefault, sizeof(subjdefault), "Greetings from send %d", getpid());
+
+  while((c = getopt(argc, argv, "ha:b:c:s:")) != -1)
   {
     switch(c)
     {
     case 'a': address = optarg; break;
+    case 's': subject = optarg; break;
     case 'h': usage(); break;
 
     case '?':
@@ -82,7 +89,7 @@ int main(int argc, char** argv)
     }
   }
 
-  if((argc - optind) > 0) msgtext = argv[argc - optind];
+  if((argc - optind) > 0) msgtext = argv + optind;
 
   pn_message_t * message;
   pn_messenger_t * messenger;
@@ -92,13 +99,19 @@ int main(int argc, char** argv)
 
   pn_messenger_start(messenger);
 
-  pn_message_set_address(message, address);
-  pn_data_t *body = pn_message_body(message);
-  pn_data_put_string(body, pn_bytes(strlen(msgtext), msgtext));
-  pn_messenger_put(messenger, message);
-  check(messenger);
-  pn_messenger_send(messenger);
-  check(messenger);
+  while ( *msgtext ) {
+    pn_message_set_address(message, address);
+    pn_message_set_subject(message, subject);
+    pn_data_t *body = pn_message_body(message);
+    pn_data_put_string(body, pn_bytes(strlen(*msgtext), *msgtext));
+    pn_messenger_put(messenger, message);
+    check(messenger);
+    printf("\nSending %d %s\n", getpid(), *msgtext);
+    pn_messenger_send(messenger);
+    check(messenger);
+    if ( *++msgtext )
+      sleep(1);
+  }
 
   pn_messenger_stop(messenger);
   pn_messenger_free(messenger);
