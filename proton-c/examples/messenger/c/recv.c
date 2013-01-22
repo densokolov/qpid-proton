@@ -42,12 +42,17 @@ void die(const char *file, int line, const char *message)
   exit(1);
 }
 
+int timeoutdefault = 0;
+int recvdefault = 1024;
+
 void usage()
 {
   printf("Usage: recv [options] <addr>\n");
   printf("-c    \tPath to the certificate file.\n");
   printf("-k    \tPath to the private key file.\n");
   printf("-p    \tPassword for the private key.\n");
+  printf("-T     \tmessenger timeout [%dms]\n", timeoutdefault);
+  printf("-R     \tnumber of messages to recv per one put/send [%d]\n", recvdefault);
   printf("<addr>\tAn address.\n");
   exit(0);
 }
@@ -59,9 +64,15 @@ int main(int argc, char** argv)
   char* password = NULL;
   char* address = "amqp://~0.0.0.0";
   int c;
+  long timeout_amt = timeoutdefault;
+  long recv_amt = recvdefault;
+  char *interr;
+  char name[100];
+  snprintf(name, sizeof(name), "recv-messenger-%d", getpid());
+
   opterr = 0;
 
-  while((c = getopt(argc, argv, "hc:k:p:")) != -1)
+  while((c = getopt(argc, argv, "hc:k:p:T:R:")) != -1)
   {
     switch(c)
     {
@@ -72,7 +83,16 @@ int main(int argc, char** argv)
     case 'c': certificate = optarg; break;
     case 'k': privatekey = optarg; break;
     case 'p': password = optarg; break;
-
+    case 'T':
+      timeout_amt = strtol(optarg, &interr, 10);
+      if (*interr)
+        usage();
+      break;
+    case 'R':
+      recv_amt = strtol(optarg, &interr, 10);
+      if (*interr)
+        usage();
+      break;
     case '?':
       if(optopt == 'c' ||
          optopt == 'k' ||
@@ -103,7 +123,7 @@ int main(int argc, char** argv)
   pn_messenger_t * messenger;
 
   message = pn_message();
-  messenger = pn_messenger(NULL);
+  messenger = pn_messenger("recv-messenger");
 
   /* load the various command line options if they're set */
   if(certificate)
@@ -125,12 +145,13 @@ int main(int argc, char** argv)
   check(messenger);
 
   pn_messenger_subscribe(messenger, address);
-  pn_messenger_set_timeout(messenger, 100);
+  if ( timeout_amt )
+    pn_messenger_set_timeout(messenger, timeout_amt);
   check(messenger);
 
   for(;;)
   {
-    pn_messenger_recv(messenger, 1);
+    pn_messenger_recv(messenger, recv_amt);
     check(messenger);
     printf("."); fflush(stdout);
 
