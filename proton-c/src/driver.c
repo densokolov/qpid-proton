@@ -816,6 +816,8 @@ void pn_driver_wait_3(pn_driver_t *d)
   pn_listener_t *l = d->listener_head;
   while (l) {
     l->pending = (l->idx && d->fds[l->idx].revents & POLLIN);
+    if ((d->trace & (PN_TRACE_FRM | PN_TRACE_RAW | PN_TRACE_DRV)) && l->pending )
+      fprintf(stderr, "=== %d Pending listener\n", l->fd);
     l = l->listener_next;
   }
 
@@ -842,7 +844,9 @@ void pn_driver_wait_3(pn_driver_t *d)
           pn_error_from_errno(d->error, "pending connect");
           pn_connector_close(c);
         } else {
-          fprintf(stderr,"\ndelayed connect succeeded\n");
+          if (d->trace & (PN_TRACE_FRM | PN_TRACE_RAW | PN_TRACE_DRV)) 
+            fprintf(stderr,"=== %p   %d delayed connect succeeded\n",
+                    (void*)c, c->fd);
           c->connect_pending = false;
         }
       } else if (idx && d->fds[idx].revents & POLLERR)
@@ -852,6 +856,14 @@ void pn_driver_wait_3(pn_driver_t *d)
       c->pending_read = (idx && d->fds[idx].revents & POLLIN);
       c->pending_write = (idx && d->fds[idx].revents & POLLOUT);
       c->pending_tick = (c->wakeup &&  c->wakeup <= now);
+      if (c->pending_read || c->pending_write || c->pending_tick)
+        if (d->trace & (PN_TRACE_FRM | PN_TRACE_RAW | PN_TRACE_DRV))
+          fprintf(stderr, "=== %p  %d Pending%s%s%s\n",
+                  (void*)c, c->fd,
+                  (c->pending_read ? " read" : ""),
+                  (c->pending_write ? " write" : ""),
+                  (c->pending_tick ? " tick" : "")
+                  );
       if (idx && d->fds[idx].revents & POLLERR)
           pn_connector_close(c);
     }
