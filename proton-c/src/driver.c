@@ -114,6 +114,7 @@ struct pn_connector_t {
   bool pending_tick;
   bool pending_read;
   bool pending_write;
+  bool connect_pending; // if we got a EINPROGRESS from connect()
   int fd;
   int status;
   pn_trace_t trace;
@@ -359,8 +360,11 @@ pn_connector_t *pn_connector(pn_driver_t *driver, const char *host,
 
   pn_configure_sock(sock);
 
+  bool connect_pending = false;
   if (connect(sock, addr->ai_addr, addr->ai_addrlen) == -1) {
-    if (errno != EINPROGRESS) {
+    if (errno == EINPROGRESS) {
+      connect_pending = true;
+    } else {
       pn_error_from_errno(driver->error, "connect");
       freeaddrinfo(addr);
       close(sock);
@@ -371,6 +375,7 @@ pn_connector_t *pn_connector(pn_driver_t *driver, const char *host,
   freeaddrinfo(addr);
 
   pn_connector_t *c = pn_connector_fd(driver, sock, context);
+  c->connect_pending = connect_pending;
   snprintf(c->name, PN_NAME_MAX, "%s:%s", host, port);
   if (driver->trace & (PN_TRACE_FRM | PN_TRACE_RAW | PN_TRACE_DRV))
     fprintf(stderr, "Connected to %s\n", c->name);
@@ -771,7 +776,7 @@ static void pn_driver_rebuild(pn_driver_t *d)
     if (!c->closed) {
       d->wakeup = pn_timestamp_min(d->wakeup, c->wakeup);
       d->fds[d->nfds].fd = c->fd;
-      d->fds[d->nfds].events = (c->status & PN_SEL_RD ? POLLIN : 0) | (c->status & PN_SEL_WR ? POLLOUT : 0);
+      d->fds[d->nfds].events = (c->status & PN_SEL_RD && !c->connect_pending? POLLIN : 0) | (c->status & PN_SEL_WR || c->connect_pending ? POLLOUT : 0);
       d->fds[d->nfds].revents = 0;
       c->idx = d->nfds;
       d->nfds++;
@@ -821,6 +826,27 @@ void pn_driver_wait_3(pn_driver_t *d)
       c->pending_read = false;
       c->pending_write = false;
       c->pending_tick = false;
+    } else if (c->connect_pending) {
+      int idx = c->idx;
+      c->pending_read = false;
+      c->pending_write = false;
+      c->pending_tick = false;
+      if (idx && d->fds[idx].revents & POLLOUT) {
+        int err;
+        socklen_t errsize = sizeof(err);
+        if ( getsockopt(c->fd, SOL_SOCKET, SO_ERROR, &err, &errsize) == -1 ) {
+          pn_error_from_errno(d->error, "getsockopt");
+          pn_connector_close(c);
+        } else if ( err ) {
+          errno = err;
+          pn_error_from_errno(d->error, "pending connect");
+          pn_connector_close(c);
+        } else {
+          fprintf(stderr,"\ndelayed connect succeeded\n");
+          c->connect_pending = false;
+        }
+      } else if (idx && d->fds[idx].revents & POLLERR)
+          pn_connector_close(c);
     } else {
       int idx = c->idx;
       c->pending_read = (idx && d->fds[idx].revents & POLLIN);
