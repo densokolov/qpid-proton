@@ -27,13 +27,14 @@
 #include <proton/engine.h> // XXX: just needed for PN_EOS
 #include <proton/sasl.h>
 #include "protocol.h"
+#include "../util.h"
 #include "../dispatcher/dispatcher.h"
 #include "../engine/engine-internal.h"
-#include "../util.h"
 
 #define SCRATCH (1024)
 
 struct pn_sasl_t {
+  PN_OBJID_BASE;
   pn_dispatcher_t *disp;
   bool client;
   bool configured;
@@ -59,8 +60,11 @@ pn_sasl_t *pn_sasl(pn_transport_t *transport)
 {
   if (!transport->sasl) {
     pn_sasl_t *sasl = malloc(sizeof(pn_sasl_t));
+    PN_OBJID_INIT(sasl, "sasl");
     sasl->disp = pn_dispatcher(1, sasl);
     sasl->disp->batch = false;
+    PN_TRACEF("%s %s %s %s", PN_OBJID(transport), PN_OBJID(transport->disp),
+              PN_OBJID(sasl), PN_OBJID(sasl->disp));
 
     pn_dispatcher_action(sasl->disp, SASL_INIT, "SASL-INIT", pn_do_init);
     pn_dispatcher_action(sasl->disp, SASL_MECHANISMS, "SASL-MECHANISMS", pn_do_mechanisms);
