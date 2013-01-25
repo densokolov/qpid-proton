@@ -405,18 +405,16 @@ void pn_messenger_flow(pn_messenger_t *messenger)
       pn_link_t *link = pn_link_head(conn, PN_LOCAL_ACTIVE);
       while (link) {
         if (pn_link_is_receiver(link)) {
-          if ( min_credit < pn_link_credit(link) || min_credit == -1 )
-            min_credit = pn_link_credit(link);
+          int credit = pn_link_credit(link);
+          if ( min_credit > credit || min_credit == -1 )
+            min_credit = credit;
         }
         link = pn_link_next(link, PN_LOCAL_ACTIVE);
       }
       ctor = pn_connector_next(ctor);
     }
-    if ( min_credit > 0 ) {
-          fprintf(stderr, "===             flow         messenger: %d %d %d\n",
-                  messenger->credit,
-                  messenger->distributed,
-                  min_credit);
+    // XXX make the 2 below configurable
+    if ( min_credit > 2 ) {
       break;
     }
 
@@ -426,15 +424,12 @@ void pn_messenger_flow(pn_messenger_t *messenger)
 
       pn_link_t *link = pn_link_head(conn, PN_LOCAL_ACTIVE);
       while (link && messenger->credit > 0) {
-        if (pn_link_is_receiver(link) && pn_link_credit(link) <= min_credit) {
-          pn_link_flow(link, 1);
-          messenger->credit--;
-          messenger->distributed++;
-          fprintf(stderr, "=== %p %p flow %p %d messenger: %d %d %d\n",
-                  (void*)ctor, (void*)conn, (void*)link, pn_link_credit(link),
-                  messenger->credit,
-                  messenger->distributed,
-                  min_credit);
+        if (pn_link_is_receiver(link) ) {
+          if ( pn_link_credit(link) <= min_credit) {
+            pn_link_flow(link, 1);
+            messenger->credit--;
+            messenger->distributed++;
+          }
         }
         link = pn_link_next(link, PN_LOCAL_ACTIVE);
       }
@@ -585,10 +580,6 @@ void pn_messenger_reclaim(pn_messenger_t *messenger, pn_connection_t *conn)
       int credit = pn_link_credit(link);
       messenger->credit += credit;
       messenger->distributed -= credit;
-      fprintf(stderr, "===             %p reclaim %p %d messenger: %d %d\n",
-              (void*)conn, (void*)link, pn_link_credit(link),
-              messenger->credit,
-              messenger->distributed);
     }
     link = pn_link_next(link, 0);
   }
