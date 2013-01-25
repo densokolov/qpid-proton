@@ -114,7 +114,7 @@ QPID_PROTON_PY	int pn_driver_wakeup(pn_driver_t *driver);
  * @param[in] timeout maximum time in milliseconds to wait, -1 means
  *                    infinite wait
  */
-QPID_PROTON_API  void pn_driver_wait(pn_driver_t *driver, int timeout);
+QPID_PROTON_API  int pn_driver_wait(pn_driver_t *driver, int timeout);
 
 /** Get the next listener with pending data in the driver.
  *

@@ -847,7 +847,7 @@ int pn_driver_wait_3(pn_driver_t *d)
 //       This workaround will eventually be replaced by a more elegant solution
 //       to the problem.
 //
-void pn_driver_wait(pn_driver_t *d, int timeout)
+int pn_driver_wait(pn_driver_t *d, int timeout)
 {
     pn_driver_wait_1(d);
     pn_driver_wait_2(d, timeout);

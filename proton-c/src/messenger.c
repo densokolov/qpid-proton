@@ -418,6 +418,7 @@ void pn_messenger_flow(pn_messenger_t *messenger)
 {
   while (messenger->credit > 0) {
     int prev = messenger->credit;
+    int min_credit = -1;
     pn_connector_t *ctor = pn_connector_head(messenger->driver);
     while (ctor) {
       pn_connection_t *conn = pn_connector_connection(ctor);
