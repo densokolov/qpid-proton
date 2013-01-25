@@ -423,11 +423,33 @@ void pn_messenger_flow(pn_messenger_t *messenger)
       pn_connection_t *conn = pn_connector_connection(ctor);
 
       pn_link_t *link = pn_link_head(conn, PN_LOCAL_ACTIVE);
-      while (link && messenger->credit > 0) {
+      while (link) {
         if (pn_link_is_receiver(link)) {
-          pn_link_flow(link, 1);
-          messenger->credit--;
-          messenger->distributed++;
+          int credit = pn_link_credit(link);
+          if ( min_credit > credit || min_credit == -1 )
+            min_credit = credit;
+        }
+        link = pn_link_next(link, PN_LOCAL_ACTIVE);
+      }
+      ctor = pn_connector_next(ctor);
+    }
+    // XXX make the 2 below configurable
+    if ( min_credit > 2 ) {
+      break;
+    }
+
+    ctor = pn_connector_head(messenger->driver);
+    while (ctor) {
+      pn_connection_t *conn = pn_connector_connection(ctor);
+
+      pn_link_t *link = pn_link_head(conn, PN_LOCAL_ACTIVE);
+      while (link && messenger->credit > 0) {
+        if (pn_link_is_receiver(link) ) {
+          if ( pn_link_credit(link) <= min_credit) {
+            pn_link_flow(link, 1);
+            messenger->credit--;
+            messenger->distributed++;
+          }
         }
         link = pn_link_next(link, PN_LOCAL_ACTIVE);
       }
