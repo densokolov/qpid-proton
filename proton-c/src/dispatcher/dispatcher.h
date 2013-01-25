@@ -35,7 +35,6 @@ typedef int (pn_action_t)(pn_dispatcher_t *disp);
 #define CODEC_LIMIT (1024)
 
 struct pn_dispatcher_t {
-  PN_OBJID_BASE;
   pn_action_t *actions[256];
   const char *names[256];
   uint8_t frame_type;

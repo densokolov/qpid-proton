@@ -25,8 +25,8 @@
 #include <proton/buffer.h>
 #include <proton/engine.h>
 #include <proton/types.h>
-#include "../util.h"
 #include "../dispatcher/dispatcher.h"
+#include "../util.h"
 
 typedef enum pn_endpoint_type_t {CONNECTION, SESSION, SENDER, RECEIVER} pn_endpoint_type_t;
 
@@ -42,7 +42,6 @@ struct pn_condition_t {
 };
 
 struct pn_endpoint_t {
-  PN_OBJID_BASE;
   pn_endpoint_type_t type;
   pn_state_t state;
   pn_error_t *error;
@@ -70,7 +69,6 @@ typedef struct {
 } pn_delivery_buffer_t;
 
 typedef struct {
-  PN_OBJID_BASE;
   pn_link_t *link;
   // XXX: stop using negative numbers
   uint32_t local_handle;
@@ -80,7 +78,6 @@ typedef struct {
 } pn_link_state_t;
 
 typedef struct {
-  PN_OBJID_BASE;
   pn_session_t *session;
   // XXX: stop using negative numbers
   uint16_t local_channel;
@@ -111,7 +108,6 @@ typedef struct {
 #include <proton/ssl.h>
 
 struct pn_transport_t {
-  PN_OBJID_BASE;
   ssize_t (*process_input)(pn_transport_t *, const char *, size_t);
   ssize_t (*process_output)(pn_transport_t *, char *, size_t);
   pn_timestamp_t (*process_tick)(pn_transport_t *, pn_timestamp_t);
@@ -222,7 +218,6 @@ struct pn_link_t {
 };
 
 struct pn_delivery_t {
-  PN_OBJID_BASE;
   pn_link_t *link;
   pn_buffer_t *tag;
   int local_state;

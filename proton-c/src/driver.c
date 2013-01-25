@@ -74,7 +74,6 @@ static inline int pn_create_socket() {
 #endif
 
 struct pn_driver_t {
-  PN_OBJID_BASE;
   pn_error_t *error;
   pn_listener_t *listener_head;
   pn_listener_t *listener_tail;
@@ -94,7 +93,6 @@ struct pn_driver_t {
 };
 
 struct pn_listener_t {
-  PN_OBJID_BASE;
   pn_driver_t *driver;
   pn_listener_t *listener_next;
   pn_listener_t *listener_prev;
@@ -108,7 +106,6 @@ struct pn_listener_t {
 #define PN_NAME_MAX (256)
 
 struct pn_connector_t {
-  PN_OBJID_BASE;
   pn_driver_t *driver;
   pn_connector_t *connector_next;
   pn_connector_t *connector_prev;
@@ -207,7 +204,7 @@ pn_listener_t *pn_listener(pn_driver_t *driver, const char *host,
   pn_listener_t *l = pn_listener_fd(driver, sock, context);
 
   if (driver->trace & (PN_TRACE_FRM | PN_TRACE_RAW | PN_TRACE_DRV))
-    PN_TRACEF("%s Listening on %s:%s", PN_OBJID(driver), host, port);
+    fprintf(stderr, "Listening on %s:%s\n", host, port);
   return l;
 }
 
@@ -217,7 +214,6 @@ pn_listener_t *pn_listener_fd(pn_driver_t *driver, int fd, void *context)
 
   pn_listener_t *l = (pn_listener_t *) malloc(sizeof(pn_listener_t));
   if (!l) return NULL;
-  PN_OBJID_INIT(l, "listener");
   l->driver = driver;
   l->listener_next = NULL;
   l->listener_prev = NULL;
@@ -286,18 +282,17 @@ pn_connector_t *pn_listener_accept(pn_listener_t *l)
     char host[1024], serv[64];
     int code;
     if ((code = getnameinfo((struct sockaddr *) &addr, addrlen, host, 1024, serv, 64, 0))) {
-      PN_TRACEF("%s getnameinfo: %s", PN_OBJID(l), gai_strerror(code));
+      fprintf(stderr, "getnameinfo: %s\n", gai_strerror(code));
       if (close(sock) == -1)
         perror("close");
       return NULL;
     } else {
       pn_configure_sock(sock);
+      if (l->driver->trace & (PN_TRACE_FRM | PN_TRACE_RAW | PN_TRACE_DRV))
+        fprintf(stderr, "Accepted from %s:%s\n", host, serv);
       pn_connector_t *c = pn_connector_fd(l->driver, sock, NULL);
       snprintf(c->name, PN_NAME_MAX, "%s:%s", host, serv);
       c->listener = l;
-      if (l->driver->trace & (PN_TRACE_FRM | PN_TRACE_RAW | PN_TRACE_DRV))
-        PN_TRACEF("%s Accepted %s from %s:%s\n",
-                  PN_OBJID(l), PN_OBJID(c), host, serv);
       return c;
     }
   }
@@ -383,8 +378,7 @@ pn_connector_t *pn_connector(pn_driver_t *driver, const char *host,
   c->connect_pending = connect_pending;
   snprintf(c->name, PN_NAME_MAX, "%s:%s", host, port);
   if (driver->trace & (PN_TRACE_FRM | PN_TRACE_RAW | PN_TRACE_DRV))
-    PN_TRACEF("%s %s to %s\n", PN_OBJID(driver),
-              (connect_pending? "Connecting" : "Connected"), c->name);
+    fprintf(stderr, "Connected to %s\n", c->name);
   return c;
 }
 
@@ -397,7 +391,6 @@ pn_connector_t *pn_connector_fd(pn_driver_t *driver, int fd, void *context)
 
   pn_connector_t *c = (pn_connector_t *) malloc(sizeof(pn_connector_t));
   if (!c) return NULL;
-  PN_OBJID_INIT(c, "connector");
   c->driver = driver;
   c->connector_next = NULL;
   c->connector_prev = NULL;
@@ -460,7 +453,6 @@ pn_transport_t *pn_connector_transport(pn_connector_t *ctor)
 void pn_connector_set_connection(pn_connector_t *ctor, pn_connection_t *connection)
 {
   if (!ctor) return;
-  PN_TRACEF("%s %s", PN_OBJID(ctor), PN_OBJID(ctor->transport), PN_OBJID(connection));
   ctor->connection = connection;
   pn_transport_bind(ctor->transport, connection);
   if (ctor->transport) pn_transport_trace(ctor->transport, ctor->trace);
@@ -517,9 +509,7 @@ void pn_connector_free(pn_connector_t *ctor)
 
 static void pn_connector_read(pn_connector_t *ctor)
 {
-  ssize_t avail = IO_BUF_SIZE - ctor->input_size;
-  ssize_t n = recv(ctor->fd, ctor->input + ctor->input_size, avail, 0);
-  PN_TRACEF("%s avail:%d n:%d size:%d", PN_OBJID(ctor), avail, n, ctor->input_size);
+  ssize_t n = recv(ctor->fd, ctor->input + ctor->input_size, IO_BUF_SIZE - ctor->input_size, 0);
   if (n < 0) {
       if (errno != EAGAIN) {
           if (n < 0) perror("read");
@@ -538,16 +528,11 @@ static void pn_connector_consume(pn_connector_t *ctor, int n)
 {
   ctor->input_size -= n;
   memmove(ctor->input, ctor->input + n, ctor->input_size);
-  PN_TRACEF("%s n:%d size:%d", PN_OBJID(ctor), n, ctor->input_size);
 }
 
 static void pn_connector_process_input(pn_connector_t *ctor)
 {
   pn_transport_t *transport = ctor->transport;
-  PN_TRACEF("%s %s input_size:%d input_done:%d input_eos:%d",
-            PN_OBJID(ctor), PN_OBJID(transport),
-            ctor->input_size, ctor->input_done,
-            ctor->input_eos);
   if (!ctor->input_done) {
     if (ctor->input_size > 0 || ctor->input_eos) {
       ssize_t n = pn_transport_input(transport, ctor->input, ctor->input_size);
@@ -582,8 +567,6 @@ static void pn_connector_process_output(pn_connector_t *ctor)
     } else {
       ctor->output_done = true;
     }
-    PN_TRACEF("%s %s n:%d size:%d", PN_OBJID(ctor), PN_OBJID(transport),
-              n, ctor->output_size);
   }
 
   if (ctor->output_size) {
@@ -632,7 +615,6 @@ static void pn_connector_write(pn_connector_t *ctor)
 {
   if (ctor->output_size > 0) {
     ssize_t n = pn_send(ctor->fd, ctor->output, ctor->output_size);
-    PN_TRACEF("%s send size:%d n:%d", PN_OBJID(ctor), ctor->output_size, n);
     if (n < 0) {
       // XXX
         if (errno != EAGAIN) {
@@ -646,10 +628,8 @@ static void pn_connector_write(pn_connector_t *ctor)
     }
   }
 
-  if (!ctor->output_size) {
+  if (!ctor->output_size)
     ctor->status &= ~PN_SEL_WR;
-    PN_TRACEF("%s send done", PN_OBJID(ctor));
-  }
 }
 
 static pn_timestamp_t pn_connector_tick(pn_connector_t *ctor, time_t now)
@@ -679,7 +659,7 @@ void pn_connector_process(pn_connector_t *c)
     }
     if (c->output_size == 0 && c->input_done && c->output_done) {
       if (c->trace & (PN_TRACE_FRM | PN_TRACE_RAW | PN_TRACE_DRV)) {
-        PN_TRACEF("%s Closed %s", PN_OBJID(c), c->name);
+        fprintf(stderr, "Closed %s\n", c->name);
       }
       pn_connector_close(c);
     }
@@ -692,7 +672,6 @@ pn_driver_t *pn_driver()
 {
   pn_driver_t *d = (pn_driver_t *) malloc(sizeof(pn_driver_t));
   if (!d) return NULL;
-  PN_OBJID_INIT(d, "driver");
   d->error = pn_error();
   d->listener_head = NULL;
   d->listener_tail = NULL;
@@ -795,16 +774,12 @@ static void pn_driver_rebuild(pn_driver_t *d)
   for (int i = 0; i < d->connector_count; i++)
   {
     if (!c->closed) {
-      short events;
       d->wakeup = pn_timestamp_min(d->wakeup, c->wakeup);
       d->fds[d->nfds].fd = c->fd;
-      d->fds[d->nfds].events = events = (c->status & PN_SEL_RD && !c->connect_pending? POLLIN : 0) | (c->status & PN_SEL_WR || c->connect_pending ? POLLOUT : 0);
+      d->fds[d->nfds].events = (c->status & PN_SEL_RD && !c->connect_pending? POLLIN : 0) | (c->status & PN_SEL_WR || c->connect_pending ? POLLOUT : 0);
       d->fds[d->nfds].revents = 0;
       c->idx = d->nfds;
       d->nfds++;
-      PN_TRACEF("%s events%s%s", PN_OBJID(c),
-                (events & POLLIN ? ":POLLIN" : ""),
-                (events & POLLOUT ? ":POLLOUT" : ""));
     }
     c = c->connector_next;
   }
@@ -830,22 +805,19 @@ int pn_driver_wait_2(pn_driver_t *d, int timeout)
   return result;
 }
 
-int pn_driver_wait_3(pn_driver_t *d)
+void pn_driver_wait_3(pn_driver_t *d)
 {
-  bool ret = 0;
   if (d->fds[0].revents & POLLIN) {
     //clear the pipe
     char buffer[512];
     while (read(d->ctrl[0], buffer, 512) == 512);
-    ret = 1;
-    PN_TRACEF("%s woken up", PN_OBJID(d));
   }
 
   pn_listener_t *l = d->listener_head;
   while (l) {
     l->pending = (l->idx && d->fds[l->idx].revents & POLLIN);
     if ((d->trace & (PN_TRACE_FRM | PN_TRACE_RAW | PN_TRACE_DRV)) && l->pending )
-      PN_TRACEF("%s Pending listener fd:%d", PN_OBJID(l), l->fd);
+      fprintf(stderr, "=== %d Pending listener\n", l->fd);
     l = l->listener_next;
   }
 
@@ -873,8 +845,8 @@ int pn_driver_wait_3(pn_driver_t *d)
           pn_connector_close(c);
         } else {
           if (d->trace & (PN_TRACE_FRM | PN_TRACE_RAW | PN_TRACE_DRV)) 
-            PN_TRACEF("%s delayed connect succeeded fd:%d ",
-                      PN_OBJID(c), c->fd);
+            fprintf(stderr,"=== %p   %d delayed connect succeeded\n",
+                    (void*)c, c->fd);
           c->connect_pending = false;
         }
       } else if (idx && d->fds[idx].revents & POLLERR)
@@ -886,12 +858,12 @@ int pn_driver_wait_3(pn_driver_t *d)
       c->pending_tick = (c->wakeup &&  c->wakeup <= now);
       if (c->pending_read || c->pending_write || c->pending_tick)
         if (d->trace & (PN_TRACE_FRM | PN_TRACE_RAW | PN_TRACE_DRV))
-          PN_TRACEF("%s Pending%s%s%s fd:%d",
-                    PN_OBJID(c),
-                    (c->pending_read ? " read" : ""),
-                    (c->pending_write ? " write" : ""),
-                    (c->pending_tick ? " tick" : ""),
-                    c->fd);
+          fprintf(stderr, "=== %p  %d Pending%s%s%s\n",
+                  (void*)c, c->fd,
+                  (c->pending_read ? " read" : ""),
+                  (c->pending_write ? " write" : ""),
+                  (c->pending_tick ? " tick" : "")
+                  );
       if (idx && d->fds[idx].revents & POLLERR)
           pn_connector_close(c);
     }
@@ -900,7 +872,6 @@ int pn_driver_wait_3(pn_driver_t *d)
 
   d->listener_next = d->listener_head;
   d->connector_next = d->connector_head;
-  return ret;
 }
 
 //
@@ -919,8 +890,7 @@ int pn_driver_wait(pn_driver_t *d, int timeout)
     int result = pn_driver_wait_2(d, timeout);
     if (result == -1)
         return pn_error_code(d->error);
-    if (pn_driver_wait_3(d))
-      return PN_WAKED_UP;
+    pn_driver_wait_3(d);
     return 0;
 }
 
@@ -948,17 +918,7 @@ pn_connector_t *pn_driver_connector(pn_driver_t *d) {
 
     if (c->closed || c->pending_read || c->pending_write || c->pending_tick ||
         c->input_size || c->input_eos) {
-      PN_TRACEF("%s return %s%s%s%s%s%s",
-                PN_OBJID(c),
-                (c->closed ? " closed" : ""),
-                (c->pending_read ? " pending_read" : ""),
-                (c->pending_write ? " pending_write" : ""),
-                (c->pending_tick ? " pending_tick" : ""),
-                (c->input_size ? " input_size" : ""),
-                (c->input_eos ? " input_eos" : ""));
       return c;
-    } else {
-      PN_TRACEF("%s skip", PN_OBJID(c));
     }
   }
 
