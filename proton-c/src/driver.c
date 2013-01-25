@@ -798,8 +798,9 @@ void pn_driver_wait_2(pn_driver_t *d, int timeout)
 #endif
 }
 
-void pn_driver_wait_3(pn_driver_t *d)
+int pn_driver_wait_3(pn_driver_t *d)
 {
+  bool ret = 0;
   if (d->fds[0].revents & POLLIN) {
     //clear the pipe
     char buffer[512];
@@ -808,6 +809,7 @@ void pn_driver_wait_3(pn_driver_t *d)
 #else
 	while (read(d->ctrl[0], buffer, 512) == 512);
 #endif
+    ret = 1;
   }
 
   pn_listener_t *l = d->listener_head;
@@ -832,6 +834,7 @@ void pn_driver_wait_3(pn_driver_t *d)
 
   d->listener_next = d->listener_head;
   d->connector_next = d->connector_head;
+  return ret;
 }
 
 //
@@ -848,7 +851,9 @@ void pn_driver_wait(pn_driver_t *d, int timeout)
 {
     pn_driver_wait_1(d);
     pn_driver_wait_2(d, timeout);
-    pn_driver_wait_3(d);
+    if (pn_driver_wait_3(d))
+      return PN_WAKED_UP;
+    return 0;
 }
 
 pn_listener_t *pn_driver_listener(pn_driver_t *d) {

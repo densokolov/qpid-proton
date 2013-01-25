@@ -42,6 +42,8 @@ typedef struct pn_error_t pn_error_t;
 #define PN_STATE_ERR (-5)
 #define PN_ARG_ERR (-6)
 #define PN_TIMEOUT (-7)
+#define PN_INTR (-8)
+#define PN_WAKED_UP (-9)
 
 QPID_PROTON_API const char *pn_code(int code);
 
