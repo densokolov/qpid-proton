@@ -41,6 +41,7 @@ typedef struct {
 } pn_queue_t;
 
 struct pn_messenger_t {
+  PN_OBJID_BASE;
   char *name;
   char *certificate;
   char *private_key;
@@ -64,6 +65,7 @@ struct pn_messenger_t {
 };
 
 struct pn_subscription_t {
+  PN_OBJID_BASE;
   char *scheme;
   void *context;
 };
@@ -256,6 +258,7 @@ pn_messenger_t *pn_messenger(const char *name)
   pn_messenger_t *m = (pn_messenger_t *) malloc(sizeof(pn_messenger_t));
 
   if (m) {
+    PN_OBJID_INIT(m, "messenger");
     m->name = build_name(name);
     m->certificate = NULL;
     m->private_key = NULL;
@@ -264,7 +267,6 @@ pn_messenger_t *pn_messenger(const char *name)
     m->timeout = -1;
     m->driver = pn_driver();
     m->idle_recv_wakeup = false;
-    //pn_driver_trace(m->driver, ~0);
     m->credit = 0;
     m->distributed = 0;
     m->next_tag = 0;
@@ -406,6 +408,10 @@ void pn_messenger_flow(pn_messenger_t *messenger)
       while (link) {
         if (pn_link_is_receiver(link)) {
           int credit = pn_link_credit(link);
+          PN_TRACEF("%s find %s %s %s credit:%d min:%d",
+                    PN_OBJID(messenger), PN_OBJID(ctor),
+                    PN_OBJID(conn), PN_OBJID(link),
+                    credit, min_credit);
           if ( min_credit > credit || min_credit == -1 )
             min_credit = credit;
         }
@@ -415,6 +421,11 @@ void pn_messenger_flow(pn_messenger_t *messenger)
     }
     // XXX make the 2 below configurable
     if ( min_credit > 2 ) {
+      PN_TRACEF("%s stop credit:%d distributed:%d min:%d",
+                PN_OBJID(messenger),
+                messenger->credit,
+                messenger->distributed,
+                min_credit);
       break;
     }
 
@@ -429,6 +440,21 @@ void pn_messenger_flow(pn_messenger_t *messenger)
             pn_link_flow(link, 1);
             messenger->credit--;
             messenger->distributed++;
+            PN_TRACEF("%s do flow %s %s %s %d messenger: credit:%d distributed:%d min_credit:%d",
+                      PN_OBJID(messenger), PN_OBJID(ctor),
+                      PN_OBJID(conn), PN_OBJID(link),
+                      pn_link_credit(link),
+                      messenger->credit,
+                      messenger->distributed,
+                      min_credit);
+          } else {
+            PN_TRACEF("%s no flow %s %s %s %d messenger: credit:%d distributed:%d min_credit:%d",
+                      PN_OBJID(messenger), PN_OBJID(ctor),
+                      PN_OBJID(conn), PN_OBJID(link),
+                      pn_link_credit(link),
+                      messenger->credit,
+                      messenger->distributed,
+                      min_credit);
           }
         }
         link = pn_link_next(link, PN_LOCAL_ACTIVE);
@@ -580,6 +606,10 @@ void pn_messenger_reclaim(pn_messenger_t *messenger, pn_connection_t *conn)
       int credit = pn_link_credit(link);
       messenger->credit += credit;
       messenger->distributed -= credit;
+      PN_TRACEF("%s reclaim %s %d messenger: credit:%d distributed:%d\n",
+                PN_OBJID(conn), PN_OBJID(link), pn_link_credit(link),
+                messenger->credit,
+                messenger->distributed);
     }
     link = pn_link_next(link, 0);
   }
@@ -632,6 +662,7 @@ int pn_messenger_tsync(pn_messenger_t *messenger, bool (*predicate)(pn_messenger
     int error = pn_driver_wait(messenger->driver, remaining);
     if (error == PN_WAKED_UP) {
       // our attention is needed outside. last round, folks.
+      PN_TRACEF("wakeup %s %s", PN_OBJID(messenger), PN_OBJID(messenger->driver));
       last_round = true;
     } else if (error) {
         return error;
@@ -643,6 +674,7 @@ int pn_messenger_tsync(pn_messenger_t *messenger, bool (*predicate)(pn_messenger
       char *scheme = sub->scheme;
       pn_connector_t *c = pn_listener_accept(l);
       pn_transport_t *t = pn_connector_transport(c);
+      //      pn_transport_set_idle_timeout(t, 10000);
 
       pn_ssl_domain_t *d = pn_ssl_domain( PN_SSL_MODE_SERVER );
       if (messenger->certificate) {
@@ -663,6 +695,10 @@ int pn_messenger_tsync(pn_messenger_t *messenger, bool (*predicate)(pn_messenger
       pn_sasl_done(sasl, PN_SASL_OK);
       pn_connection_t *conn =
         pn_messenger_connection(messenger, scheme, NULL, NULL, NULL, NULL);
+
+      PN_TRACEF("%s accept %s %s %s %s",
+                PN_OBJID(messenger), PN_OBJID(sub), PN_OBJID(c),
+                PN_OBJID(t), PN_OBJID(conn));
       pn_connector_set_connection(c, conn);
     }
 
@@ -809,6 +845,7 @@ pn_subscription_t *pn_subscription(pn_messenger_t *messenger, const char *scheme
 {
   PN_ENSURE(messenger->subscriptions, messenger->sub_capacity, messenger->sub_count + 1);
   pn_subscription_t *sub = messenger->subscriptions + messenger->sub_count++;
+  PN_OBJID_INIT(sub, "subscription");
   sub->scheme = pn_strdup(scheme);
   sub->context = NULL;
   return sub;
@@ -1017,6 +1054,9 @@ int pn_messenger_put(pn_messenger_t *messenger, pn_message_t *msg)
       } else {
         pn_link_advance(sender);
         pn_queue_add(&messenger->outgoing, d);
+        PN_TRACEF("%s %s %s size:%d n:%d",
+                  PN_OBJID(messenger), PN_OBJID(sender), PN_OBJID(d),
+                  size, n);
         // XXX: doing this every time is slow, need to be smarter
         //pn_messenger_tsync(messenger, false_pred, 0);
         return 0;
@@ -1089,12 +1129,16 @@ bool pn_messenger_sent(pn_messenger_t *messenger)
     while (link) {
       if (pn_link_is_sender(link)) {
         if (pn_link_queued(link)) {
+          PN_TRACEF("link queued %s %s %s",
+                    PN_OBJID(messenger), PN_OBJID(conn), PN_OBJID(link));
           return false;
         }
 
         pn_delivery_t *d = pn_unsettled_head(link);
         while (d) {
           if (!pn_delivery_remote_state(d) && !pn_delivery_settled(d)) {
+            PN_TRACEF("undelivered %s %s %s",
+                      PN_OBJID(messenger), PN_OBJID(conn), PN_OBJID(d));
             return false;
           }
           d = pn_unsettled_next(d);
@@ -1106,6 +1150,7 @@ bool pn_messenger_sent(pn_messenger_t *messenger)
     ctor = pn_connector_next(ctor);
   }
 
+  PN_TRACEF("all sent %s", PN_OBJID(messenger));
   return true;
 }
 
@@ -1118,6 +1163,8 @@ bool pn_messenger_rcvd(pn_messenger_t *messenger)
     pn_delivery_t *d = pn_work_head(conn);
     while (d) {
       if (pn_delivery_readable(d) && !pn_delivery_partial(d)) {
+        PN_TRACEF("have delivery %s %s %s",
+                  PN_OBJID(messenger), PN_OBJID(conn), PN_OBJID(d));
         return true;
       }
       d = pn_work_next(d);
@@ -1125,6 +1172,7 @@ bool pn_messenger_rcvd(pn_messenger_t *messenger)
     ctor = pn_connector_next(ctor);
   }
 
+  PN_TRACEF("no delivery %s", PN_OBJID(messenger));
   return false;
 }
 

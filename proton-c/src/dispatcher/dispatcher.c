@@ -25,14 +25,14 @@
 #include <proton/framing.h>
 #include <proton/engine.h>
 #include <proton/buffer.h>
+#include "../util.h"
 #include "dispatcher.h"
 #include "protocol.h"
-#include "../util.h"
 
 pn_dispatcher_t *pn_dispatcher(uint8_t frame_type, void *context)
 {
   pn_dispatcher_t *disp = (pn_dispatcher_t *) calloc(sizeof(pn_dispatcher_t), 1);
-
+  PN_OBJID_INIT(disp, "dispatcher");
   disp->frame_type = frame_type;
   disp->context = context;
   disp->trace = PN_TRACE_OFF;
@@ -90,7 +90,8 @@ static void pn_do_trace(pn_dispatcher_t *disp, uint16_t ch, pn_dir_t dir,
     uint8_t code = scanned ? code64 : 0;
     size_t n = SCRATCH;
     pn_data_format(args, disp->scratch, &n);
-    pn_dispatcher_trace(disp, ch, "%s %s %s", dir == OUT ? "->" : "<-",
+    pn_dispatcher_trace(disp, ch, "%s %s %s %s", PN_OBJID(disp), 
+                        dir == OUT ? "->" : "<-",
                         disp->names[code], disp->scratch);
     if (size) {
       char buf[1024];
@@ -168,6 +169,8 @@ ssize_t pn_dispatcher_input(pn_dispatcher_t *disp, const char *bytes, size_t ava
   size_t offered = available;
 
   if (offered == disp->fragment) {
+    PN_TRACEF("%s offered:%d, disp->fragment:%d",
+              PN_OBJID(disp), offered, disp->fragment);
     return 0;
   }
 
@@ -187,6 +190,8 @@ ssize_t pn_dispatcher_input(pn_dispatcher_t *disp, const char *bytes, size_t ava
     pn_frame_t frame;
 
     size_t n = pn_read_frame(&frame, bytes + read, available - read);
+    PN_TRACEF("%s available:%d, read:%d, n:%d",
+              PN_OBJID(disp), available, read, n);
     if (n) {
       disp->input_frames_ct += 1;
       int e = pn_dispatch_frame(disp, frame);
@@ -221,6 +226,12 @@ ssize_t pn_dispatcher_input(pn_dispatcher_t *disp, const char *bytes, size_t ava
   } else {
     disp->fragment = 0;
   }
+
+  PN_TRACEF("%s offered:%d available:%d read:%d consumed:%d leftover:%d fragment:%d disp->fragment:%d",
+            PN_OBJID(disp),
+            offered, available, read, consumed,
+            leftover, fragment, disp->fragment);
+
   return consumed;
 }
 
@@ -296,6 +307,8 @@ ssize_t pn_dispatcher_output(pn_dispatcher_t *disp, char *bytes, size_t size)
   memmove(bytes, disp->output, n);
   memmove(disp->output, disp->output + n, disp->available - n);
   disp->available -= n;
+  PN_TRACEF("%s size:%d n:%d available:%d",
+            PN_OBJID(disp), size, n, disp->available);
   // XXX: need to check for errors
   return n;
 }
