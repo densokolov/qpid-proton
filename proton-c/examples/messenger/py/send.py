@@ -33,14 +33,16 @@ mng = Messenger()
 mng.start()
 
 import uuid
+import time
 
 msg = Message()
 for m in args:
   msg.address = opts.address
   msg.body = unicode(m)
   mng.put(msg)
+  time.sleep(1)
+  mng.send()
 
-mng.send()
 print "sent:", ", ".join(args)
 
 mng.stop()
