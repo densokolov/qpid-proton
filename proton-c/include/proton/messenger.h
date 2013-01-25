@@ -173,6 +173,15 @@ int pn_messenger_errno(pn_messenger_t *messenger);
  */
 const char *pn_messenger_error(pn_messenger_t *messenger);
 
+/** Wake up the messenger's driver
+ *
+ * @param[in] messenger the messenger to wake up
+ *
+ * @return an error code or zero on success
+ * @see error.h
+ */
+int pn_messenger_wakeup(pn_messenger_t *messenger);
+
 /** Gets the accept mode for a Messenger. @see
  * ::pn_messenger_set_accept_mode
  *
