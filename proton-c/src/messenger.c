@@ -390,22 +390,45 @@ void pn_messenger_flow(pn_messenger_t *messenger)
 {
   while (messenger->credit > 0) {
     int prev = messenger->credit;
+    int min_credit = -1;
     pn_connector_t *ctor = pn_connector_head(messenger->driver);
     while (ctor) {
       pn_connection_t *conn = pn_connector_connection(ctor);
 
       pn_link_t *link = pn_link_head(conn, PN_LOCAL_ACTIVE);
-      while (link && messenger->credit > 0) {
+      while (link) {
         if (pn_link_is_receiver(link)) {
-          pn_link_flow(link, 1);
-          messenger->credit--;
-          messenger->distributed++;
+          int credit = pn_link_credit(link);
+          if ( min_credit > credit || min_credit == -1 )
+            min_credit = credit;
         }
         link = pn_link_next(link, PN_LOCAL_ACTIVE);
       }
-
       ctor = pn_connector_next(ctor);
     }
+    // XXX make the 2 below configurable
+    if ( min_credit > 2 ) {
+      break;
+    }
+
+    ctor = pn_connector_head(messenger->driver);
+    while (ctor) {
+      pn_connection_t *conn = pn_connector_connection(ctor);
+
+      pn_link_t *link = pn_link_head(conn, PN_LOCAL_ACTIVE);
+      while (link && messenger->credit > 0) {
+        if (pn_link_is_receiver(link) ) {
+          if ( pn_link_credit(link) <= min_credit) {
+            pn_link_flow(link, 1);
+            messenger->credit--;
+            messenger->distributed++;
+          }
+        }
+        link = pn_link_next(link, PN_LOCAL_ACTIVE);
+      }
+      ctor = pn_connector_next(ctor);
+    }
+
     if (messenger->credit == prev) break;
   }
 }
@@ -819,7 +842,9 @@ pn_link_t *pn_messenger_link(pn_messenger_t *messenger, const char *address, boo
 
   pn_session_t *ssn = pn_session(connection);
   pn_session_open(ssn);
-  link = sender ? pn_sender(ssn, "sender-xxx") : pn_receiver(ssn, "receiver-xxx");
+  char ssn_name[100];
+  snprintf(ssn_name, sizeof(ssn_name), "%s-xxx-%d", (sender ? "sender" : "receiver"), getpid());
+  link = sender ? pn_sender(ssn, ssn_name) : pn_receiver(ssn, ssn_name);
   // XXX
   pn_terminus_set_address(pn_link_target(link), name);
   pn_terminus_set_address(pn_link_source(link), name);
