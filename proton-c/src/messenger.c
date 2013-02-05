@@ -662,6 +662,7 @@ int pn_messenger_tsync(pn_messenger_t *messenger, bool (*predicate)(pn_messenger
     int error = pn_driver_wait(messenger->driver, remaining);
     if (error == PN_WAKED_UP) {
       // our attention is needed outside. last round, folks.
+      PN_TRACEF("wakeup %s %s", PN_OBJID(messenger), PN_OBJID(messenger->driver));
       last_round = true;
     } else if (error) {
         return error;

@@ -838,6 +838,7 @@ int pn_driver_wait_3(pn_driver_t *d)
     char buffer[512];
     while (read(d->ctrl[0], buffer, 512) == 512);
     ret = 1;
+    PN_TRACEF("%s woken up", PN_OBJID(d));
   }
 
   pn_listener_t *l = d->listener_head;
