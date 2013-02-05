@@ -140,6 +140,18 @@ const char *pn_messenger_get_trusted_certificates(pn_messenger_t *messenger);
  */
 int pn_messenger_set_timeout(pn_messenger_t *messenger, int timeout);
 
+/** If enabled, a recv on an idle messenger (no connections, no listeners)
+ * will not return a PN_STATE_ERROR but will perform a pn_driver_wait.
+ *
+ * The user is then supposed to break out of the wait using pn_messenger_wakeup.
+ *
+ * @param[in] messenger the messenger
+ * @param[in] a flag to enable new functionality
+ *
+ * @return an error code or zero if there is no error
+ */
+int pn_messenger_set_idle_recv_wakeup(pn_messenger_t *messenger, bool wakeup);
+
 /** Retrieves the timeout for a Messenger.
  *
  * @param[in] messenger the messenger
@@ -172,6 +184,15 @@ int pn_messenger_errno(pn_messenger_t *messenger);
  *         occurred
  */
 const char *pn_messenger_error(pn_messenger_t *messenger);
+
+/** Wake up the messenger's driver
+ *
+ * @param[in] messenger the messenger to wake up
+ *
+ * @return an error code or zero on success
+ * @see error.h
+ */
+int pn_messenger_wakeup(pn_messenger_t *messenger);
 
 /** Gets the accept mode for a Messenger. @see
  * ::pn_messenger_set_accept_mode
