@@ -399,6 +399,10 @@ void pn_messenger_flow(pn_messenger_t *messenger)
       while (link) {
         if (pn_link_is_receiver(link)) {
           int credit = pn_link_credit(link);
+          PN_TRACEF("%s find %s %s %s credit:%d min:%d",
+                    PN_OBJID(messenger), PN_OBJID(ctor),
+                    PN_OBJID(conn), PN_OBJID(link),
+                    credit, min_credit);
           if ( min_credit > credit || min_credit == -1 )
             min_credit = credit;
         }
@@ -408,6 +412,11 @@ void pn_messenger_flow(pn_messenger_t *messenger)
     }
     // XXX make the 2 below configurable
     if ( min_credit > 2 ) {
+      PN_TRACEF("%s stop credit:%d distributed:%d min:%d",
+                PN_OBJID(messenger),
+                messenger->credit,
+                messenger->distributed,
+                min_credit);
       break;
     }
 
@@ -422,6 +431,21 @@ void pn_messenger_flow(pn_messenger_t *messenger)
             pn_link_flow(link, 1);
             messenger->credit--;
             messenger->distributed++;
+            PN_TRACEF("%s do flow %s %s %s %d messenger: credit:%d distributed:%d min_credit:%d",
+                      PN_OBJID(messenger), PN_OBJID(ctor),
+                      PN_OBJID(conn), PN_OBJID(link),
+                      pn_link_credit(link),
+                      messenger->credit,
+                      messenger->distributed,
+                      min_credit);
+          } else {
+            PN_TRACEF("%s no flow %s %s %s %d messenger: credit:%d distributed:%d min_credit:%d",
+                      PN_OBJID(messenger), PN_OBJID(ctor),
+                      PN_OBJID(conn), PN_OBJID(link),
+                      pn_link_credit(link),
+                      messenger->credit,
+                      messenger->distributed,
+                      min_credit);
           }
         }
         link = pn_link_next(link, PN_LOCAL_ACTIVE);
