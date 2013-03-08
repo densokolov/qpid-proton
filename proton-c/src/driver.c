@@ -519,7 +519,7 @@ static void pn_connector_read(pn_connector_t *ctor)
 {
   ssize_t avail = IO_BUF_SIZE - ctor->input_size;
   ssize_t n = recv(ctor->fd, ctor->input + ctor->input_size, avail, 0);
-  PN_TRACEF("%s avail:%d n:%d size:%d", PN_OBJID(ctor), avail, n, ctor->input_size);
+  PN_DEBUGF("%s avail:%d n:%d size:%d", PN_OBJID(ctor), avail, n, ctor->input_size);
   if (n < 0) {
       if (errno != EAGAIN) {
           if (n < 0) perror("read");
@@ -632,7 +632,7 @@ static void pn_connector_write(pn_connector_t *ctor)
 {
   if (ctor->output_size > 0) {
     ssize_t n = pn_send(ctor->fd, ctor->output, ctor->output_size);
-    PN_TRACEF("%s send size:%d n:%d", PN_OBJID(ctor), ctor->output_size, n);
+    PN_DEBUGF("%s send size:%d n:%d", PN_OBJID(ctor), ctor->output_size, n);
     if (n < 0) {
       // XXX
         if (errno != EAGAIN) {
@@ -802,7 +802,7 @@ static void pn_driver_rebuild(pn_driver_t *d)
       d->fds[d->nfds].revents = 0;
       c->idx = d->nfds;
       d->nfds++;
-      PN_TRACEF("%s events%s%s", PN_OBJID(c),
+      PN_DEBUGF("%s events%s%s", PN_OBJID(c),
                 (events & POLLIN ? ":POLLIN" : ""),
                 (events & POLLOUT ? ":POLLOUT" : ""));
     }
@@ -824,6 +824,7 @@ int pn_driver_wait_2(pn_driver_t *d, int timeout)
     else
       timeout = (timeout < 0) ? d->wakeup-now : pn_min(timeout, d->wakeup - now);
   }
+  PN_DEBUGF("%s %d", PN_OBJID(d), timeout);
   int result = poll(d->fds, d->nfds, d->closed_count > 0 ? 0 : timeout);
   if (result == -1)
     pn_error_from_errno(d->error, "poll");
@@ -838,14 +839,14 @@ int pn_driver_wait_3(pn_driver_t *d)
     char buffer[512];
     while (read(d->ctrl[0], buffer, 512) == 512);
     ret = 1;
-    PN_TRACEF("%s woken up", PN_OBJID(d));
+    PN_DEBUGF("%s woken up", PN_OBJID(d));
   }
 
   pn_listener_t *l = d->listener_head;
   while (l) {
     l->pending = (l->idx && d->fds[l->idx].revents & POLLIN);
     if ((d->trace & (PN_TRACE_FRM | PN_TRACE_RAW | PN_TRACE_DRV)) && l->pending )
-      PN_TRACEF("%s Pending listener fd:%d", PN_OBJID(l), l->fd);
+      PN_DEBUGF("%s Pending listener fd:%d", PN_OBJID(l), l->fd);
     l = l->listener_next;
   }
 
@@ -873,7 +874,7 @@ int pn_driver_wait_3(pn_driver_t *d)
           pn_connector_close(c);
         } else {
           if (d->trace & (PN_TRACE_FRM | PN_TRACE_RAW | PN_TRACE_DRV)) 
-            PN_TRACEF("%s delayed connect succeeded fd:%d ",
+            PN_DEBUGF("%s delayed connect succeeded fd:%d ",
                       PN_OBJID(c), c->fd);
           c->connect_pending = false;
         }
@@ -886,7 +887,7 @@ int pn_driver_wait_3(pn_driver_t *d)
       c->pending_tick = (c->wakeup &&  c->wakeup <= now);
       if (c->pending_read || c->pending_write || c->pending_tick)
         if (d->trace & (PN_TRACE_FRM | PN_TRACE_RAW | PN_TRACE_DRV))
-          PN_TRACEF("%s Pending%s%s%s fd:%d",
+          PN_DEBUGF("%s Pending%s%s%s fd:%d",
                     PN_OBJID(c),
                     (c->pending_read ? " read" : ""),
                     (c->pending_write ? " write" : ""),
