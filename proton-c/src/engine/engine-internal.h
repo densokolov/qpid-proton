@@ -56,12 +56,14 @@ struct pn_endpoint_t {
 };
 
 typedef struct {
+  PN_OBJID_BASE;
   pn_delivery_t *delivery;
   pn_sequence_t id;
   bool sent;
 } pn_delivery_state_t;
 
 typedef struct {
+  PN_OBJID_BASE;
   pn_sequence_t next;
   size_t capacity;
   size_t head;

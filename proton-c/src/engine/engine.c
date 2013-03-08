@@ -103,6 +103,7 @@ pn_delivery_state_t *pn_delivery_buffer_push(pn_delivery_buffer_t *db, pn_delive
   db->size++;
   pn_delivery_state_t *ds = pn_delivery_buffer_tail(db);
   pn_delivery_state_init(ds, delivery, db->next++);
+  PN_OBJID_INIT(ds, PN_OBJID(db));
   return ds;
 }
 
@@ -802,7 +803,9 @@ pn_session_state_t *pn_session_get_state(pn_transport_t *transport, pn_session_t
                                                    .remote_channel=-1};
     PN_OBJID_INIT2(&transport->sessions[i], transport, "session_state");
     pn_delivery_buffer_init(&transport->sessions[i].incoming, 0, PN_SESSION_WINDOW);
+    PN_OBJID_INIT2(&transport->sessions[i].incoming, &transport->sessions[i], "incoming");
     pn_delivery_buffer_init(&transport->sessions[i].outgoing, 0, PN_SESSION_WINDOW);
+    PN_OBJID_INIT2(&transport->sessions[i].outgoing, &transport->sessions[i], "outgoing");
   }
   pn_session_state_t *state = &transport->sessions[ssn->id];
   state->session = ssn;
@@ -1338,6 +1341,7 @@ void pn_real_settle(pn_delivery_t *delivery)
 void pn_full_settle(pn_delivery_buffer_t *db, pn_delivery_t *delivery)
 {
   pn_delivery_state_t *state = (pn_delivery_state_t *) delivery->transport_context;
+  PN_TRACEF("%s %s", PN_OBJID(delivery), PN_OBJID(state));
   delivery->transport_context = NULL;
   if (state) state->delivery = NULL;
   pn_real_settle(delivery);
@@ -1348,6 +1352,7 @@ void pn_full_settle(pn_delivery_buffer_t *db, pn_delivery_t *delivery)
 void pn_delivery_settle(pn_delivery_t *delivery)
 {
   if (!delivery) return;
+  PN_TRACEF("%s", PN_OBJID(delivery));
 
   pn_link_t *link = delivery->link;
   if (pn_is_current(delivery)) {
