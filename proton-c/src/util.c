@@ -201,9 +201,25 @@ void pn_objid_init2(pn_objid_t *objid, const char *y, const char *base)
   pn_objid_init(objid, buf.id);
 }
 
+static void pn_trace_default_writer(void *stream, const char *buf, size_t buflen) {
+  fprintf(stderr, "%.*s\n", (int)buflen, buf);
+}
+
+static void *pn_trace_writer_stream;
+static pn_trace_writer_t pn_trace_writer_func = pn_trace_default_writer;
+
+void pn_trace_set_writer(pn_trace_writer_t writer, void *stream) {
+  if ( writer ) {
+    pn_trace_writer_func = writer;
+    pn_trace_writer_stream = stream;
+  } else {
+    pn_trace_writer_func = pn_trace_default_writer;
+    pn_trace_writer_stream = 0;
+  }
+}
+
 void pn_trace_do(int level, const char *file, int line, const char *func, const char *fmt, ...)
 {
-  // TODO: allow the user to integrate all of this into their logging framework
   static bool log_init = false;
   static bool enabled = false;
   if ( !log_init ) {
@@ -229,6 +245,6 @@ void pn_trace_do(int level, const char *file, int line, const char *func, const 
   snprintf(fmtbuf, buflen, "### %s:%d %s %s ### ",
            strrchr(file,'/')+1, line, func, level_name);
   vsnprintf(fmtbuf+strlen(fmtbuf), buflen-strlen(fmtbuf), fmt, ap);
-  fprintf(stderr, "%s\n", fmtbuf); fflush(stderr);
+  pn_trace_writer_func(pn_trace_writer_stream, fmtbuf, strlen(fmtbuf));
   va_end(ap);
 }
