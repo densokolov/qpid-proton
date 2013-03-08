@@ -31,9 +31,13 @@
 #include <proton/types.h>
 
 #define PN_LEVEL_ERROR 1
+#define PN_LEVEL_WARN  2
+#define PN_LEVEL_INFO  3
+#define PN_LEVEL_DEBUG 4
 #define PN_LEVEL_TRACE 5
 
 #define PN_ERRORF(...) pn_trace_do(PN_LEVEL_ERROR, __FILE__, __LINE__, __func__, __VA_ARGS__)
+#define PN_DEBUGF(...) pn_trace_do(PN_LEVEL_DEBUG, __FILE__, __LINE__, __func__, __VA_ARGS__)
 #define PN_TRACEF(...) pn_trace_do(PN_LEVEL_TRACE, __FILE__, __LINE__, __func__, __VA_ARGS__)
 void pn_trace_do(int level, const char *file, int line, const char *func, const char *fmt, ...);
 

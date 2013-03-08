@@ -148,6 +148,40 @@ bool pn_env_bool(const char *name)
                pn_i_eq_nocase(v, "yes") || pn_i_eq_nocase(v, "on"));
 }
 
+int pn_env_debug_level(const char *name)
+{
+  char *v = getenv(name);
+  if ( v ) {
+    if (pn_i_eq_nocase(v, "error"))
+      return PN_LEVEL_DEBUG;
+    if (pn_i_eq_nocase(v, "warn") || pn_i_eq_nocase(v, "warning"))
+      return PN_LEVEL_WARN;
+    if (pn_i_eq_nocase(v, "info"))
+      return PN_LEVEL_INFO;
+    if (pn_i_eq_nocase(v, "debug"))
+      return PN_LEVEL_DEBUG;
+    if (pn_i_eq_nocase(v, "trace") || pn_i_eq_nocase(v, "full"))
+      return PN_LEVEL_TRACE;
+  }
+  return PN_LEVEL_ERROR;
+}
+
+const char *pn_level_name(int level, char *level_buf) {
+  const char *level_name;
+  switch(level) {
+    case PN_LEVEL_ERROR: level_name = "ERROR"; break;
+    case PN_LEVEL_WARN:  level_name = "WARN";  break;
+    case PN_LEVEL_INFO:  level_name = "INFO";  break;
+    case PN_LEVEL_DEBUG: level_name = "DEBUG"; break;
+    case PN_LEVEL_TRACE: level_name = "TRACE"; break;
+    default:
+      sprintf(level_buf, "<?-%d-?>", level);
+      level_name = level_buf;
+      break;
+  }
+  return level_name;
+}
+
 char *pn_strdup(const char *src)
 {
   if (src) {
@@ -221,25 +255,19 @@ void pn_trace_set_writer(pn_trace_writer_t writer, void *stream) {
 void pn_trace_do(int level, const char *file, int line, const char *func, const char *fmt, ...)
 {
   static bool log_init = false;
-  static bool enabled = false;
-  if ( !log_init ) {
-    log_init = true;
-    enabled = pn_env_bool("PN_TRACE_ENABLED");
-  }
-  if ( !enabled && level > PN_LEVEL_ERROR )
-    return;
+  static int min_level = PN_LEVEL_ERROR;
   size_t buflen = 10000;
   char fmtbuf[buflen+1+2];
-  char *level_name;
   char level_buf[100];
-  switch(level) {
-    case PN_LEVEL_ERROR: level_name = "ERROR"; break;
-    case PN_LEVEL_TRACE: level_name = "TRACE"; break;
-    default:
-      sprintf(level_buf, "<?-%d-?>", level);
-      level_name = level_buf;
-      break;
+  if ( !log_init ) {
+    log_init = true;
+    min_level = pn_env_debug_level("PN_TRACE_ENABLED");
+    sprintf(fmtbuf, "Logging at %s", pn_level_name(min_level, level_buf));
+    pn_trace_writer_func(pn_trace_writer_stream, fmtbuf, strlen(fmtbuf));
   }
+  if ( level > min_level )
+    return;
+  const char *level_name = pn_level_name(level, level_buf);
   va_list ap;
   va_start(ap, fmt);
   snprintf(fmtbuf, buflen, "### %s:%d %s %s ### ",
