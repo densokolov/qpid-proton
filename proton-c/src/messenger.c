@@ -48,6 +48,7 @@ struct pn_messenger_t {
   char *trusted_certificates;
   int timeout;
   pn_driver_t *driver;
+  bool idle_recv_wakeup;
   bool unlimited_credit;
   int credit_batch;
   int credit;
@@ -264,6 +265,7 @@ pn_messenger_t *pn_messenger(const char *name)
     m->trusted_certificates = NULL;
     m->timeout = -1;
     m->driver = pn_driver();
+    m->idle_recv_wakeup = false;
     m->unlimited_credit = false;
     m->credit_batch = 10;
     m->credit = 0;
@@ -340,6 +342,13 @@ int pn_messenger_set_timeout(pn_messenger_t *messenger, int timeout)
 {
   if (!messenger) return PN_ARG_ERR;
   messenger->timeout = timeout;
+  return 0;
+}
+
+int pn_messenger_set_idle_recv_wakeup(pn_messenger_t *messenger, bool wakeup)
+{
+  if (!messenger) return PN_ARG_ERR;
+  messenger->idle_recv_wakeup = wakeup;
   return 0;
 }
 
@@ -614,15 +623,21 @@ int pn_messenger_tsync(pn_messenger_t *messenger, bool (*predicate)(pn_messenger
   pn_timestamp_t now = pn_i_now();
   long int deadline = now + timeout;
   bool pred;
+  bool last_round = false;
 
   while (true) {
     pred = predicate(messenger);
     int remaining = deadline - now;
     if (pred || (timeout >= 0 && remaining < 0)) break;
+    if (last_round) break;
 
     int error = pn_driver_wait(messenger->driver, remaining);
-    if (error)
+    if (error == PN_WAKED_UP) {
+      // our attention is needed outside. last round, folks.
+      last_round = true;
+    } else if (error) {
         return error;
+    }
 
     pn_listener_t *l;
     while ((l = pn_driver_listener(messenger->driver))) {
@@ -693,6 +708,13 @@ int pn_messenger_start(pn_messenger_t *messenger)
 bool pn_messenger_stopped(pn_messenger_t *messenger)
 {
   return pn_connector_head(messenger->driver) == NULL;
+}
+
+int pn_messenger_wakeup(pn_messenger_t *messenger)
+{
+  if (!messenger) return PN_ARG_ERR;
+
+  return pn_driver_wakeup(messenger->driver);
 }
 
 int pn_messenger_stop(pn_messenger_t *messenger)
@@ -1138,8 +1160,12 @@ int pn_messenger_send(pn_messenger_t *messenger)
 int pn_messenger_recv(pn_messenger_t *messenger, int n)
 {
   if (!messenger) return PN_ARG_ERR;
-  if (!pn_listener_head(messenger->driver) && !pn_connector_head(messenger->driver))
-    return pn_error_format(messenger->error, PN_STATE_ERR, "no valid sources");
+  if (!pn_listener_head(messenger->driver) && !pn_connector_head(messenger->driver)) {
+    if ( messenger->idle_recv_wakeup )
+      return pn_driver_wait(messenger->driver, messenger->timeout);
+    else
+      return pn_error_format(messenger->error, PN_STATE_ERR, "no valid sources");
+  }
   int total = messenger->credit + messenger->distributed;
   if (n == -1) {
     messenger->unlimited_credit = true;
