@@ -26,6 +26,7 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
+#include <netinet/tcp.h>
 #include <netdb.h>
 #include <unistd.h>
 #include <fcntl.h>
@@ -251,6 +252,14 @@ static void pn_configure_sock(int sock) {
     perror("setsockopt");
   };
   */
+
+  // disable nagle
+  int flag = 1;
+  int result = setsockopt(sock, IPPROTO_TCP, TCP_NODELAY,
+                          (char *) &flag, sizeof(int));
+  if (result < 0) {
+    perror("setsockopt");
+  }
 
     int flags = fcntl(sock, F_GETFL);
     flags |= O_NONBLOCK;
