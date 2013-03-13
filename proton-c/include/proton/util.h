@@ -29,6 +29,9 @@
 extern "C" {
 #endif
 
+typedef void (*pn_trace_writer_t)(void *stream, const char *buf, size_t bufsize);
+PN_EXTERN void pn_trace_set_writer(pn_trace_writer_t writer, void *stream);
+
 PN_EXTERN void parse_url(char *url, char **scheme, char **user, char **pass, char **host, char **port, char **path);
 PN_EXTERN void pn_fatal(const char *fmt, ...);
 PN_EXTERN void pn_vfatal(const char *fmt, va_list ap);

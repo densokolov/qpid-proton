@@ -32,6 +32,29 @@
 #include <sys/types.h>
 #include <proton/types.h>
 
+#define PN_LEVEL_ERROR 1
+#define PN_LEVEL_WARN  2
+#define PN_LEVEL_INFO  3
+#define PN_LEVEL_DEBUG 4
+#define PN_LEVEL_TRACE 5
+
+#define PN_ERRORF(...) pn_trace_do(PN_LEVEL_ERROR, __FILE__, __LINE__, __func__, __VA_ARGS__)
+#define PN_DEBUGF(...) pn_trace_do(PN_LEVEL_DEBUG, __FILE__, __LINE__, __func__, __VA_ARGS__)
+#define PN_TRACEF(...) pn_trace_do(PN_LEVEL_TRACE, __FILE__, __LINE__, __func__, __VA_ARGS__)
+void pn_trace_do(int level, const char *file, int line, const char *func, const char *fmt, ...);
+
+#define PN_OBJID_BASE pn_objid_t the_objid_base
+#define PN_OBJID(x) ((x) ? ((pn_objid_t*)(x))->id : "(null " #x ")")
+#define PN_OBJID_INIT(x, base) pn_objid_init(&(x)->the_objid_base, base)
+#define PN_OBJID_INIT2(x, y, base) pn_objid_init2(&(x)->the_objid_base, PN_OBJID(y), base)
+#define PN_OBJID_MAX 100
+
+typedef struct pn_objid_t {
+  char id[PN_OBJID_MAX];
+} pn_objid_t;
+void pn_objid_init(pn_objid_t *objid, const char *base);
+void pn_objid_init2(pn_objid_t *objid, const char *y, const char *base);
+
 PN_EXTERN ssize_t pn_quote_data(char *dst, size_t capacity, const char *src, size_t size);
 PN_EXTERN void pn_fprint_data(FILE *stream, const char *bytes, size_t size);
 PN_EXTERN void pn_print_data(const char *bytes, size_t size);
