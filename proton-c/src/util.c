@@ -261,6 +261,10 @@ void pn_trace_set_writer(pn_trace_writer_t writer, void *stream) {
 
 #define PN_TRACE_BUFLEN 10000
 
+#ifdef _WIN32
+#define snprintf _snprintf
+#endif
+
 void pn_trace_do(int level, const char *file, int line, const char *func, const char *fmt, ...)
 {
   static bool log_init = false;
