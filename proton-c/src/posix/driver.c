@@ -621,7 +621,7 @@ void pn_connector_process(pn_connector_t *c)
 
     // Closed?
 
-    if (c->input_done && c->output_done) {
+    if ((c->input_done && c->output_done) || c->input_eos) {
       if (c->trace & (PN_TRACE_FRM | PN_TRACE_RAW | PN_TRACE_DRV)) {
         fprintf(stderr, "Closed %s\n", c->name);
       }
