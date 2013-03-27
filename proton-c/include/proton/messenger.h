@@ -374,6 +374,21 @@ PN_EXTERN int pn_messenger_send(pn_messenger_t *messenger);
  */
 PN_EXTERN int pn_messenger_recv(pn_messenger_t *messenger, int n);
 
+/** Receives up to n messages into the incoming message queue of a
+ * messenger. If n is -1, Messenger will be able to receive as many
+ * messages as it can buffer internally.  Blocks until at least one
+ * message is available in the incoming queue, or, at least one
+ * message was sent.
+ *
+ * @param[in] messenger the messenger
+ * @param[in] n the maximum number of messages to receive or -1 to to
+ * receive as many messages as it can buffer internally.
+ *
+ * @return an error code or zero on success
+ * @see error.h
+ */
+PN_EXTERN int pn_messenger_progress(pn_messenger_t *messenger, int n);
+
 /** Gets a message from the head of the incoming message queue of a
  * messenger.
  *
