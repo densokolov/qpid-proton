@@ -1066,6 +1066,17 @@ pn_status_t pn_messenger_status(pn_messenger_t *messenger, pn_tracker_t tracker)
   }
 }
 
+bool pn_messenger_buffered(pn_messenger_t *messenger, pn_tracker_t tracker)
+{
+  pn_queue_t *queue = pn_tracker_queue(messenger, tracker);
+  pn_delivery_t *d = pn_queue_get(queue, pn_tracker_sequence(tracker));
+  if (d) {
+    return pn_delivery_buffered(d);
+  } else {
+    return false;
+  }
+}
+
 int pn_messenger_settle(pn_messenger_t *messenger, pn_tracker_t tracker, int flags)
 {
   pn_queue_t *queue = pn_tracker_queue(messenger, tracker);

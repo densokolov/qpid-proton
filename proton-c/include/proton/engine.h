@@ -498,6 +498,7 @@ PN_EXTERN void pn_delivery_settle(pn_delivery_t *delivery);
 PN_EXTERN void pn_delivery_dump(pn_delivery_t *delivery);
 PN_EXTERN void *pn_delivery_get_context(pn_delivery_t *delivery);
 PN_EXTERN void pn_delivery_set_context(pn_delivery_t *delivery, void *context);
+PN_EXTERN bool pn_delivery_buffered(pn_delivery_t *delivery);
 
 PN_EXTERN pn_condition_t *pn_connection_condition(pn_connection_t *connection);
 PN_EXTERN pn_condition_t *pn_connection_remote_condition(pn_connection_t *connection);
