@@ -52,6 +52,7 @@ struct pn_messenger_t {
   int credit_batch;
   int credit;
   int distributed;
+  int last_outgoing;
   uint64_t next_tag;
   pn_queue_t outgoing;
   pn_queue_t incoming;
@@ -268,6 +269,7 @@ pn_messenger_t *pn_messenger(const char *name)
     m->credit_batch = 10;
     m->credit = 0;
     m->distributed = 0;
+    m->last_outgoing = 0;
     m->next_tag = 0;
     pn_queue_init(&m->outgoing);
     pn_queue_init(&m->incoming);
@@ -1141,6 +1143,13 @@ bool pn_messenger_rcvd(pn_messenger_t *messenger)
   return false;
 }
 
+bool pn_messenger_progressed(pn_messenger_t *messenger)
+{
+  if (messenger->last_outgoing > pn_messenger_outgoing(messenger))
+    return true;
+  return pn_messenger_rcvd(messenger);
+}
+
 int pn_messenger_send(pn_messenger_t *messenger)
 {
   return pn_messenger_sync(messenger, pn_messenger_sent);
@@ -1161,6 +1170,28 @@ int pn_messenger_recv(pn_messenger_t *messenger, int n)
   }
   pn_messenger_flow(messenger);
   return pn_messenger_sync(messenger, pn_messenger_rcvd);
+}
+
+int pn_messenger_progress(pn_messenger_t *messenger, int n)
+{
+  if (!messenger) return PN_ARG_ERR;
+  if (!pn_listener_head(messenger->driver) && !pn_connector_head(messenger->driver)) {
+    if ( messenger->idle_recv_wakeup )
+      return pn_driver_wait(messenger->driver, messenger->timeout);
+    else
+      return pn_error_format(messenger->error, PN_STATE_ERR, "no valid sources");
+  }
+  messenger->last_outgoing = pn_messenger_outgoing(messenger);
+  int total = messenger->credit + messenger->distributed;
+  if (n == -1) {
+    messenger->unlimited_credit = true;
+  } else  {
+    messenger->unlimited_credit = false;
+    if (n > total)
+      messenger->credit += (n - total);
+  }
+  pn_messenger_flow(messenger);
+  return pn_messenger_sync(messenger, pn_messenger_progressed);
 }
 
 int pn_messenger_get(pn_messenger_t *messenger, pn_message_t *msg)
