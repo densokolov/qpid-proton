@@ -317,6 +317,16 @@ PN_EXTERN int pn_messenger_put(pn_messenger_t *messenger, pn_message_t *msg);
  */
 PN_EXTERN pn_status_t pn_messenger_status(pn_messenger_t *messenger, pn_tracker_t tracker);
 
+/** Checks if the delivery associated with
+ * the given tracker is still waiting to be sent.
+ *
+ * @param[in] messenger the messenger
+ * @param[in] tracker the tracker identify the delivery
+ *
+ * @return true if delivery is still buffered by proton
+ */
+PN_EXTERN bool pn_messenger_buffered(pn_messenger_t *messenger, pn_tracker_t tracker);
+
 /** Frees a Messenger from tracking the status associated with a given
  * tracker. Use the PN_CUMULATIVE flag to indicate everything up to
  * (and including) the given tracker.
