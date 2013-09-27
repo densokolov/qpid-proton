@@ -23,7 +23,7 @@
   <modelVersion>4.0.0</modelVersion>
   <groupId>org.apache.qpid</groupId>
   <artifactId>proton-api-reconciliation</artifactId>
-  <version>1.0-SNAPSHOT</version>
+  <version>0.5-omdi-proton</version>
   <properties>
     <proton-c-build-dir>${basedir}/../../build/proton-c</proton-c-build-dir>
     <jni-jar>${proton-c-build-dir}/bindings/java/proton-jni.jar</jni-jar>
@@ -73,7 +73,7 @@
           <dependency>
             <groupId>org.apache.qpid</groupId>
             <artifactId>proton-api</artifactId>
-            <version>1.0-SNAPSHOT</version>
+            <version>0.5-omdi-proton</version>
           </dependency>
         </dependencies>
       </plugin>
