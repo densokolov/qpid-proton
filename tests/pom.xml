@@ -79,7 +79,7 @@ directory &lt;basedir&gt;/build/proton-c.</description>
     <dependency>
       <groupId>org.apache.qpid</groupId>
       <artifactId>proton-api</artifactId>
-      <version>1.0-SNAPSHOT</version>
+      <version>0.5-omdi-proton</version>
     </dependency>
     <dependency>
         <groupId>org.python</groupId>
@@ -93,14 +93,14 @@ directory &lt;basedir&gt;/build/proton-c.</description>
            generate test data, hence this dependency appearing here and not just in the proton-j profile -->
       <groupId>org.apache.qpid</groupId>
       <artifactId>proton-j-impl</artifactId>
-      <version>1.0-SNAPSHOT</version>
+      <version>0.5-omdi-proton</version>
       <scope>test</scope>
     </dependency>
     <dependency>
       <!-- Depend on test helper classes contained with test-jar from proton-j-impl -->
       <groupId>org.apache.qpid</groupId>
       <artifactId>proton-j-impl</artifactId>
-      <version>1.0-SNAPSHOT</version>
+      <version>0.5-omdi-proton</version>
       <scope>test</scope>
       <type>test-jar</type>
     </dependency>
@@ -165,7 +165,7 @@ directory &lt;basedir&gt;/build/proton-c.</description>
   <parent>
     <groupId>org.apache.qpid</groupId>
     <artifactId>proton-project</artifactId>
-    <version>1.0-SNAPSHOT</version>
+    <version>0.5-omdi-proton</version>
   </parent>
   <scm>
     <url>http://svn.apache.org/viewvc/qpid/proton/</url>
