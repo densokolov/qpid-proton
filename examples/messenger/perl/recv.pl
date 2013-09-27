@@ -51,6 +51,22 @@ for(;;)
         print "Address: " . $msg->get_address() . "\n";
         print "Subject: " . $msg->get_subject() . "\n";
         print "Content: " . $msg->get_content() . "\n";
+        print "Body:    " . $msg->get_body() . "\n";
+        print "Properties:\n";
+        my $props = $msg->get_properties();
+        foreach (keys $props) {
+            print "\t$_=$props->{$_}\n";
+        }
+        print "Instructions:\n";
+        my $instructions = $msg->get_instructions;
+        foreach (keys $instructions) {
+            print "\t$_=" . $instructions->{$_} . "\n";
+        }
+        print "Annotations:\n";
+        my $annotations = $msg->get_annotations();
+        foreach (keys $annotations) {
+            print "\t$_=" . $annotations->{$_} . "\n";
+        }
     }
 }
 

@@ -17,6 +17,8 @@
 # under the License.
 #
 
+use Scalar::Util qw(looks_like_number);
+
 =pod
 
 =head1 NAME
@@ -68,8 +70,16 @@ sub new {
     my ($class) = @_;
     my ($self) = {};
     my $capacity = $_[1] || 16;
+    my $impl = $capacity;
+    $self->{_free} = 0;
 
-    my $impl = cproton_perl::pn_data($capacity);
+    if($capacity) {
+        if (::looks_like_number($capacity)) {
+            $impl = cproton_perl::pn_data($capacity);
+            $self->{_free} = 1;
+        }
+    }
+
     $self->{_impl} = $impl;
 
     bless $self, $class;
@@ -80,8 +90,30 @@ sub DESTROY {
     my ($self) = @_;
     my $impl = $self->{_impl};
 
-    cproton_perl::pn_data_free($impl);
+    cproton_perl::pn_data_free($impl) if $self->{_free};
 }
+
+=pod
+
+=head1 ACTIONS
+
+Clear all content for the data object.
+
+=over
+
+=item my $data->clear();
+
+=back
+
+=cut
+
+sub clear {
+    my ($self) = @_;
+    my $impl = $self->{_impl};
+
+    cproton_perl::pn_data_clear($impl);
+}
+
 
 =pod
 
@@ -177,16 +209,14 @@ sub next {
     my ($self) = @_;
     my $impl = $self->{_impl};
 
-    my $type = cproton_perl::pn_data_next($impl);
-    return qpid::proton::Mapping->find_by_type_value($type);
+    return cproton_perl::pn_data_next($impl);
 }
 
 sub prev {
     my ($self) = @_;
     my $impl = $self->{_impl};
 
-    my $type = cproton_perl::pn_data_prev($impl);
-    return qpid::proton::Mapping->find_by_type_value($type);
+    return cproton_perl::pn_data_prev($impl);
 }
 
 
@@ -1127,6 +1157,47 @@ sub get_map {
     my $impl = $self->{_impl};
 
     cproton_perl::pn_data_get_map($impl);
+}
+
+sub put_map_helper {
+    my ($self) = @_;
+    my ($hash) = $_[1];
+
+    $self->put_map;
+    $self->enter;
+
+    foreach(keys $hash) {
+        $self->put_string("$_");
+        $self->put_string("$hash->{$_}");
+    }
+
+    $self->exit;
+}
+
+sub get_map_helper {
+    my ($self) = @_;
+    my $result = {};
+    my $type = $self->get_type;
+
+    if ($cproton_perl::PN_MAP == $type->get_type_value) {
+        my $size = $self->get_map;
+
+        $self->enter;
+
+        for($count = 0; $count < $size; $count++) {
+            if($self->next) {
+                my $key = $self->get_type->get($self);
+                if($self->next) {
+                    my $value = $self->get_type->get($self);
+                    $result->{$key} = $value;
+                }
+            }
+        }
+    }
+
+    $self->exit;
+
+    return $result;
 }
 
 1;

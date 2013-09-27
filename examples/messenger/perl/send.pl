@@ -24,17 +24,25 @@ use Getopt::Std;
 
 use qpid_proton;
 
-sub usage {
-    exit(0);
+$Getopt::Std::STANDARD_HELP_VERSION = 1;
+
+sub VERSION_MESSAGE() {
 }
 
-my $address = "0.0.0.0";
+sub HELP_MESSAGE() {
+    print "Usage: send.pl [OPTIONS] -a <ADDRESS>\n";
+    print "Options:\n";
+    print "\t-s        - the message subject\n";
+    print "\t-C        - the message content\n";
+    print "\t<ADDRESS> - amqp://<domain>[/<name>]";
+}
 
 my %options = ();
-getopts("ha:", \%options) or usage();
-usage if $options{h};
+getopts("a:C:s:", \%options) or usage();
 
-$address = $options{a} if defined $options{a};
+my $address = $options{a} || "amqp://0.0.0.0";
+my $subject = $options{s} || localtime(time);
+my $content = $options{C} || "";
 
 my $msg  = new qpid::proton::Message();
 my $messenger = new qpid::proton::Messenger();
@@ -47,7 +55,24 @@ my @messages = @ARGV;
 foreach (@messages)
 {
     $msg->set_address($address);
-    $msg->set_content($_);
+    $msg->set_subject($subject);
+    $msg->set_content($content);
+    # try a few different body types
+    my $body_type = int(rand(4));
+    $msg->set_property("sent", "" . localtime(time));
+    $msg->get_instructions->{"fold"} = "yes";
+    $msg->get_instructions->{"spindle"} = "no";
+    $msg->get_instructions->{"mutilate"} = "no";
+    $msg->get_annotations->{"version"} = 1.0;
+    $msg->get_annotations->{"pill"} = "RED";
+
+  SWITCH: {
+      $body_type == 0 && do { $msg->set_body("It is now " . localtime(time));};
+      $body_type == 1 && do { $msg->set_body(rand(65536), qpid::proton::FLOAT); };
+      $body_type == 2 && do { $msg->set_body(int(rand(2)), qpid::proton::BOOL); };
+      $body_type == 3 && do { $msg->set_body({"foo" => "bar"}, qpid::proton::MAP); };
+    }
+
     $messenger->put($msg);
 }
 

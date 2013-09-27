@@ -30,6 +30,11 @@ sub new {
 
     my $impl = cproton_perl::pn_message();
     $self->{_impl} = $impl;
+    $self->{_properties} = {};
+    $self->{_instructions} = {};
+    $self->{_annotations} = {};
+    $self->{_body} = undef;
+    $self->{_body_type} = undef;
 
     bless $self, $class;
     return $self;
@@ -54,12 +59,17 @@ sub DESTROY {
 
 sub get_impl {
     my ($self) = @_;
-    return $self->{_impl};
+    my $impl = $self->{_impl};
+    return $impl;
 }
 
 sub clear {
     my ($self) = @_;
     cproton__perl::pn_message_clear($self->{_impl});
+    $self->{_body} = undef;
+    $self->{_properties} = {};
+    $self->{_instructions} = {};
+    $self->{_annotations} = {};
 }
 
 sub errno {
@@ -310,6 +320,207 @@ sub set_reply_to_group_id {
 sub get_reply_to_group_id {
     my ($self) = @_;
     return cproton_perl::pn_message_get_reply_to_group_id($self->{_impl});
+}
+
+=pod
+
+=head2 PROPERTIES
+
+Allows for accessing and updating the set of properties associated with the
+message.
+
+=over
+
+=item my $props = $msg->get_properties;
+
+=item $msg->set_properties( [VAL] );
+
+=item my $value = $msg->get_property( [KEY] );
+
+=item $msg->set_propert( [KEY], [VALUE] );
+
+=back
+
+=cut
+
+sub get_properties {
+    my ($self) = @_;
+
+    return $self->{_properties};
+}
+
+sub set_properties {
+    my ($self) = @_;
+    my ($properties) = $_[1];
+
+    $self->{_properties} = $properties;
+}
+
+sub get_property {
+    my ($self) = @_;
+    my $name = $_[1];
+    my $properties = $self->{_properties};
+
+    return $properties{$name};
+}
+
+sub set_property {
+    my ($self) = @_;
+    my $name = $_[1];
+    my $value = $_[2];
+    my $properties = $self->{_properties};
+
+    $properties->{"$name"} = $value;
+}
+
+=pod
+
+=head2 ANNOTATIONS
+
+Allows for accessing and updatin ghte set of annotations associated with the
+message.
+
+=over
+
+=item my $annotations = $msg->get_annotations;
+
+=item $msg->get_annotations->{ [KEY] } = [VALUE];
+
+=item $msg->set_annotations( [VALUE ]);
+
+=back
+
+=cut
+
+sub get_annotations {
+    my ($self) = @_;
+    return $self->{_annotations};
+}
+
+sub set_annotations {
+    my ($self) = @_;
+    my $annotations = $_[1];
+
+    $self->{_annotations} = $annotations;
+}
+
+=pod
+
+=cut
+
+sub get_instructions {
+    my ($self) = @_;
+    return $self->{_instructions};
+}
+
+sub set_instructions {
+    my ($self) = @_;
+    my $instructions = $_[1];
+
+    $self->{_instructions} = $instructions;
+}
+
+=pod
+
+=head2 BODY
+
+The body of the message. When setting the body value a type must be specified,
+such as I<qpid::proton::INT>. If unspecified, the body type will default to
+B<qpid::proton::STRING>.
+
+=over
+
+=item $msg->set_body( [VALUE], [TYPE] );
+
+=item $msg->get_body();
+
+=item $msg->get_body_type();
+
+=back
+
+=cut
+
+sub set_body {
+    my ($self) = @_;
+    my $body = $_[1];
+    my $body_type = $_[2] || qpid::proton::STRING;
+
+    $self->{_body} = $body;
+    $self->{_body_type} = $body_type;
+}
+
+sub get_body {
+    my ($self) = @_;
+    my $body = $self->{_body};
+
+    return $body;
+}
+
+sub get_body_type {
+    my ($self) = @_;
+
+    return $self->{_body_type};
+}
+
+sub preencode() {
+    my ($self) = @_;
+    my $impl = $self->{_impl};
+
+    my $my_body = $self->{_body};
+    my $body_type = $self->{_body_type};
+    my $body = new qpid::proton::Data(cproton_perl::pn_message_body($impl));
+    $body->clear();
+    $body_type->put($body, $my_body) if($my_body && $body_type);
+
+    my $my_props = $self->{_properties};
+    my $props = new qpid::proton::Data(cproton_perl::pn_message_properties($impl));
+    $props->clear();
+    qpid::proton::MAP->put($props, $my_props) if $my_props;
+
+    my $my_insts = $self->{_instructions};
+    my $insts = new qpid::proton::Data(cproton_perl::pn_message_instructions($impl));
+    $insts->clear;
+    qpid::proton::MAP->put($insts, $my_insts) if $my_insts;
+
+    my $my_annots = $self->{_annotations};
+    my $annotations = new qpid::proton::Data(cproton_perl::pn_message_annotations($impl));
+    $annotations->clear();
+    qpid::proton::MAP->put($annotations, $my_annots);
+}
+
+sub postdecode() {
+    my ($self) = @_;
+    my $impl = $self->{_impl};
+
+    $self->{_body} = undef;
+    $self->{_body_type} = undef;
+    my $body = new qpid::proton::Data(cproton_perl::pn_message_body($impl));
+    if ($body->next()) {
+        $self->{_body_type} = $body->get_type();
+        $self->{_body} = $body->get_type()->get($body);
+    }
+
+    my $props = new qpid::proton::Data(cproton_perl::pn_message_properties($impl));
+    $props->rewind;
+    if ($props->next) {
+        my $properties = $props->get_type->get($props);
+        $self->{_properties} = $props->get_type->get($props);
+    }
+
+    my $insts = new qpid::proton::Data(cproton_perl::pn_message_instructions($impl));
+    $insts->rewind;
+    if ($insts->next) {
+        $self->{_instructions} = $insts->get_type->get($insts);
+    }
+
+    my $annotations = new qpid::proton::Data(cproton_perl::pn_message_annotations($impl));
+    $annotations->rewind;
+    if ($annotations->next) {
+        my $annots = $annotations->get_type->get($annotations);
+        $self->{_annotations} = $annots;
+    } else {
+        $self->{_annotations} = {};
+    }
 }
 
 1;

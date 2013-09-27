@@ -46,16 +46,27 @@ typedef struct pn_hash_t pn_hash_t;
 typedef struct pn_string_t pn_string_t;
 
 typedef struct {
+  void (*initialize)(void *);
   void (*finalize)(void *);
   uintptr_t (*hashcode)(void *);
   intptr_t (*compare)(void *, void *);
   int (*inspect)(void *, pn_string_t *);
 } pn_class_t;
 
+#define PN_CLASS(PREFIX) {                      \
+    PREFIX ## _initialize,                      \
+    PREFIX ## _finalize,                        \
+    PREFIX ## _hashcode,                        \
+    PREFIX ## _compare,                         \
+    PREFIX ## _inspect                          \
+}
+
 PN_EXTERN void *pn_new(size_t size, pn_class_t *clazz);
+PN_EXTERN void pn_initialize(void *object, pn_class_t *clazz);
 PN_EXTERN void *pn_incref(void *object);
 PN_EXTERN void pn_decref(void *object);
 PN_EXTERN int pn_refcount(void *object);
+PN_EXTERN void pn_finalize(void *object);
 PN_EXTERN void pn_free(void *object);
 PN_EXTERN pn_class_t *pn_class(void *object);
 PN_EXTERN uintptr_t pn_hashcode(void *object);

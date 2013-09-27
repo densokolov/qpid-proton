@@ -1,3 +1,12 @@
+version 0.6:
+	* qpid::proton::Messenger returns incoming trackers on get.
+	* qpid::proton::Messenger returns outgoing tracker on put.
+	* qpid::proton::Message exposes the body property.
+	* qpid::proton::Message exposes the properties property.
+	* qpid::proton::Message exports the annotations property.
+	* qpid::proton::Message exposes the instructions property.
+	* Mailserver and client example apps.
+
 version 0.5:
 	* Added the qpid::proton::Data type.
 	* Added the qpid::proton::put_array_into method.

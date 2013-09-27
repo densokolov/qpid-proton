@@ -1,4 +1,8 @@
+#ifndef _PROTON_ENCODER_H
+#define _PROTON_ENCODER_H 1
+
 /*
+ *
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -17,33 +21,10 @@
  * under the License.
  *
  */
-package org.apache.qpid.proton;
 
-/**
- * Use to indicate that a feature of the Proton API is not supported by a particular implementation
- * (e.g. proton-j or proton-c-via-JNI).
- */
-public class ProtonUnsupportedOperationException extends UnsupportedOperationException
-{
-    /** Used by the Python test layer to detect an unsupported operation */
-    public static final boolean skipped = true;
+typedef struct pn_encoder_t pn_encoder_t;
 
-    public ProtonUnsupportedOperationException()
-    {
-    }
+pn_encoder_t *pn_encoder();
+ssize_t pn_encoder_encode(pn_encoder_t *encoder, pn_data_t *src, char *dst, size_t size);
 
-    public ProtonUnsupportedOperationException(String message)
-    {
-        super(message);
-    }
-
-    public ProtonUnsupportedOperationException(String message, Throwable cause)
-    {
-        super(message, cause);
-    }
-
-    public ProtonUnsupportedOperationException(Throwable cause)
-    {
-        super(cause);
-    }
-}
+#endif /* encoder.h */

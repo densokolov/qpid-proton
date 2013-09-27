@@ -17,26 +17,13 @@
 # under the License.
 #
 
-module Qpid
+# Name: Proton
+# Description: Qpid Proton C library
+# Version: @PN_VERSION@
+# URL: http://qpid.apache.org/proton/
 
-  module Proton
-
-    # A +Tracker+ is used to track the disposition of a +Message+.
-    #
-    class Tracker
-
-      CUMULATIVE = Cproton::PN_CUMULATIVE
-
-      def initialize(impl) # :nodoc:
-        @impl = impl
-      end
-
-      def impl # :nodoc:
-        @impl
-      end
-
-    end
-
-  end
-
-end
+set (PROTON_FOUND         "True")
+set (PROTON_VERSION       @PN_VERSION@)
+set (PROTON_INCLUDE_DIRS  "@INCLUDEDIR@")
+set (PROTON_LIBRARY_DIRS  "@PREFIX@/bin")
+set (PROTON_LIBRARIES     "qpid-proton")

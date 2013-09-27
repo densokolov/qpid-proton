@@ -38,16 +38,20 @@ typedef struct {
 
 void *pn_new(size_t size, pn_class_t *clazz)
 {
-  pni_head_t *obj = (pni_head_t *) malloc(sizeof(pni_head_t) + size);
-  obj->clazz = clazz;
-  obj->refcount = 1;
-  return obj + 1;
+  pni_head_t *head = (pni_head_t *) malloc(sizeof(pni_head_t) + size);
+  void *object = head + 1;
+  pn_initialize(object, clazz);
+  return object;
 }
 
-void pn_convert(void *object, pn_class_t *clazz)
+void pn_initialize(void *object, pn_class_t *clazz)
 {
   pni_head_t *head = pni_head(object);
   head->clazz = clazz;
+  head->refcount = 1;
+  if (clazz && clazz->initialize) {
+    clazz->initialize(object);
+  }
 }
 
 void *pn_incref(void *object)
@@ -62,13 +66,24 @@ void pn_decref(void *object)
 {
   if (object) {
     pni_head_t *head = pni_head(object);
-    head->refcount--;
-    if (!head->refcount) {
-      if (head->clazz && head->clazz->finalize) {
-        head->clazz->finalize(object);
-      }
+    if (head->refcount > 1) {
+      head->refcount--;
+    } else if (head->refcount == 1) {
+      pn_finalize(object);
       free(head);
     }
+  }
+}
+
+void pn_finalize(void *object)
+{
+  if (object) {
+    pni_head_t *head = pni_head(object);
+    assert(head->refcount == 1);
+    if (head->clazz && head->clazz->finalize) {
+      head->clazz->finalize(object);
+    }
+    head->refcount = 0;
   }
 }
 
@@ -269,9 +284,49 @@ static uintptr_t pn_list_hashcode(void *object)
   return hash;
 }
 
+static intptr_t pn_list_compare(void *oa, void *ob)
+{
+  assert(oa); assert(ob);
+  pn_list_t *a = (pn_list_t *) oa;
+  pn_list_t *b = (pn_list_t *) ob;
+
+  size_t na = pn_list_size(a);
+  size_t nb = pn_list_size(b);
+  if (na != nb) {
+    return nb - na;
+  } else {
+    for (size_t i = 0; i < na; i++) {
+      intptr_t delta = pn_compare(pn_list_get(a, i), pn_list_get(b, i));
+      if (delta) return delta;
+    }
+  }
+
+  return 0;
+}
+
+static int pn_list_inspect(void *obj, pn_string_t *dst)
+{
+  assert(obj);
+  pn_list_t *list = (pn_list_t *) obj;
+  int err = pn_string_addf(dst, "[");
+  if (err) return err;
+  size_t n = pn_list_size(list);
+  for (size_t i = 0; i < n; i++) {
+    if (i > 0) {
+      err = pn_string_addf(dst, ", ");
+      if (err) return err;
+    }
+    err = pn_inspect(pn_list_get(list, i), dst);
+    if (err) return err;
+  }
+  return pn_string_addf(dst, "]");
+}
+
+#define pn_list_initialize NULL
+
 pn_list_t *pn_list(size_t capacity, int options)
 {
-  static pn_class_t clazz = {pn_list_finalize, pn_list_hashcode};
+  static pn_class_t clazz = PN_CLASS(pn_list);
 
   pn_list_t *list = (pn_list_t *) pn_new(sizeof(pn_list_t), &clazz);
   list->capacity = capacity ? capacity : 16;
@@ -349,9 +404,38 @@ static void pni_map_allocate(pn_map_t *map)
   map->size = 0;
 }
 
+static int pn_map_inspect(void *obj, pn_string_t *dst)
+{
+  assert(obj);
+  pn_map_t *map = (pn_map_t *) obj;
+  int err = pn_string_addf(dst, "{");
+  if (err) return err;
+  pn_handle_t entry = pn_map_head(map);
+  bool first = true;
+  while (entry) {
+    if (first) {
+      first = false;
+    } else {
+      err = pn_string_addf(dst, ", ");
+      if (err) return err;
+    }
+    err = pn_inspect(pn_map_key(map, entry), dst);
+    if (err) return err;
+    err = pn_string_addf(dst, ": ");
+    if (err) return err;
+    err = pn_inspect(pn_map_value(map, entry), dst);
+    if (err) return err;
+    entry = pn_map_next(map, entry);
+  }
+  return pn_string_addf(dst, "}");
+}
+
+#define pn_map_initialize NULL
+#define pn_map_compare NULL
+
 pn_map_t *pn_map(size_t capacity, float load_factor, int options)
 {
-  static pn_class_t clazz = {pn_map_finalize, pn_map_hashcode, NULL};
+  static pn_class_t clazz = PN_CLASS(pn_map);
 
   pn_map_t *map = (pn_map_t *) pn_new(sizeof(pn_map_t), &clazz);
   map->capacity = capacity ? capacity : 16;
@@ -675,8 +759,9 @@ pn_string_t *pn_string(const char *bytes)
   return pn_stringn(bytes, bytes ? strlen(bytes) : 0);
 }
 
-static pn_class_t clazz = {pn_string_finalize, pn_string_hashcode,
-                           pn_string_compare, pn_string_inspect};
+#define pn_string_initialize NULL
+
+static pn_class_t clazz = PN_CLASS(pn_string);
 
 pn_string_t *pn_stringn(const char *bytes, size_t n)
 {
