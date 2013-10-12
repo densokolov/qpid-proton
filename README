@@ -49,7 +49,8 @@ language:
   yum install openssl-devel
 
   # dependencies needed for bindings
-  yum install swig python-devel ruby-devel php-devel java-1.6.0-openjdk
+  yum install swig python-devel ruby-devel php-devel perl-devel \
+              java-1.6.0-openjdk
 
   # dependencies needed for python docs
   yum install epydoc
@@ -90,6 +91,14 @@ would normally install to /usr/lib/perl5/vendor_perl/ then, if you use:
   make install DESTDIR=/opt
 
 the bindings would install to /opt/usr/lib/perl5/vendor_perl/ instead.
+
+NOTE: The paths in libqpid-proton.pc are not updated if, when installing, DESTDIR
+is used. The contents of that file are based on the values provided when the
+CMake environment was created.
+
+For more on the use of DESTDIR, see the following:
+
+http://www.gnu.org/prep/standards/html_node/DESTDIR.html
 
 == Disable Building The Language Bindings ==
 
