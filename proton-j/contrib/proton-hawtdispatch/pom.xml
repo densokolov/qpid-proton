@@ -29,7 +29,7 @@
 
   <properties>
     <hawtbuf-version>1.9</hawtbuf-version>
-    <hawtdispatch-version>1.18-SNAPSHOT</hawtdispatch-version>
+    <hawtdispatch-version>1.18</hawtdispatch-version>
   </properties>
 
   <dependencies>
