@@ -26,6 +26,11 @@
 
 set(obj_dir ${CMAKE_CURRENT_BINARY_DIR}/qpid-proton.dir/${CMAKE_CFG_INTDIR})
 
+find_file(WindowsC99SymbolCheck
+          WindowsC99SymbolCheck.py
+          PATH ${CMAKE_MODULE_PATH}
+          NO_DEFAULT_PATH)
+message("Found ${WindowsC99SymbolCheck}")
 add_custom_command(TARGET qpid-proton PRE_LINK COMMAND ${PYTHON_EXECUTABLE}
-        ${CMAKE_MODULE_PATH}WindowsC99SymbolCheck.py ${obj_dir}
+        ${WindowsC99SymbolCheck} ${obj_dir}
         COMMENT "Checking for dangerous use of C99-violating functions")
