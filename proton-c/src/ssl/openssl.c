@@ -910,6 +910,7 @@ static ssize_t process_input_ssl( pn_io_layer_t *io_layer, const char *input_dat
                 memmove( newbuf, ssl->inbuf, ssl->in_count );
                 free( ssl->inbuf );
                 ssl->inbuf = newbuf;
+                data = ssl->inbuf;
               }
               work_pending = true;  // can we get more input?
             } else {
